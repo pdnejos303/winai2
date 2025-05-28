@@ -1,14 +1,35 @@
 ################################################################################
-#  REGISTER API — FULL TEST SUITE (Issue #1 + #2)
-#  - ต้องรัน `npm run dev` ก่อน            (Next.js เปิดที่ http://localhost:3000)
-#  - คลิก “Send Request” ที่บรรทัด POST เพื่อยิงทีละเคส
-#  - สังเกต Status / JSON ในแท็บ Response :
-#      400, 409  → แสดง error JSON
-#      200       → { "ok": true }
+#  REGISTER API — FULL TEST SUITE
+#  - ครอบคลุม Issue #1  (Email format + เลขขั้นต่ำ 8)
+#              Issue #2  (Password strength: ต้องมีตัวอักษร + ตัวเลข)
+#              Issue #3  (Always-JSON error response)
+#
+#  การใช้งาน:
+#    1) รัน `npm run dev`   (Next.js ← http://localhost:3000)
+#    2) เปิดไฟล์นี้ใน VS Code > คลิก “Send Request” ทีละเคส
+#    3) สังเกต Status / JSON ในแท็บ Response:
+#         400 / 409 → {"error": "..."}       (Content-Type: application/json)
+#         200       → {"ok": true}
 ################################################################################
 
 
-### [CASE-1] Email format invalid                → Expected 400 Invalid email format
+# ───────────────────────────────────────────────────────────────────────────────
+#  ISSUE #3 – Always-JSON   (Payload ไม่ใช่ JSON → 400 JSON error)
+# ───────────────────────────────────────────────────────────────────────────────
+
+### [CASE-0] Payload ไม่ใช่ JSON                → Expected 400 Invalid JSON payload
+POST http://localhost:3000/api/register
+Content-Type: text/plain
+
+this is not json
+
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+#  ISSUE #1 – Email format validation
+# ───────────────────────────────────────────────────────────────────────────────
+
+### [CASE-1] Email format invalid               → Expected 400 Invalid email format
 POST http://localhost:3000/api/register
 Content-Type: application/json
 
@@ -19,7 +40,11 @@ Content-Type: application/json
 
 
 
-### [CASE-2] Password length < 8                 → Expected 400 Password must be at least 8 characters
+# ───────────────────────────────────────────────────────────────────────────────
+#  ISSUE #2 – Password strength rules
+# ───────────────────────────────────────────────────────────────────────────────
+
+### [CASE-2] Password length < 8                → Expected 400 Password must be at least 8 characters
 POST http://localhost:3000/api/register
 Content-Type: application/json
 
@@ -30,7 +55,7 @@ Content-Type: application/json
 
 
 
-### [CASE-3] Password NO number (A–Z only)       → Expected 400 must include number
+### [CASE-3] Password NO number (A–Z only)      → Expected 400 must include number
 POST http://localhost:3000/api/register
 Content-Type: application/json
 
@@ -41,7 +66,7 @@ Content-Type: application/json
 
 
 
-### [CASE-4] Password NO letter (0–9 only)       → Expected 400 must include letter
+### [CASE-4] Password NO letter (0–9 only)      → Expected 400 must include letter
 POST http://localhost:3000/api/register
 Content-Type: application/json
 
@@ -52,7 +77,7 @@ Content-Type: application/json
 
 
 
-### [CASE-5] Valid (letter+number ≥ 8)           → Expected 200 { ok:true }
+### [CASE-5] Valid (letter+number ≥ 8)          → Expected 200 {"ok": true}
 #    ใช้ {{$timestamp}} เพื่อสุ่มอีเมลไม่ให้ซ้ำ
 POST http://localhost:3000/api/register
 Content-Type: application/json
@@ -64,7 +89,11 @@ Content-Type: application/json
 
 
 
-### [CASE-6] Duplicate email                     → Expected 409 Email already used
+# ───────────────────────────────────────────────────────────────────────────────
+#  ISSUE #3 – Duplicate handling (JSON 409)
+# ───────────────────────────────────────────────────────────────────────────────
+
+### [CASE-6] Duplicate email                    → Expected 409 Email already used
 #    ส่งอีเมลเดิมซ้ำจาก CASE-5 (ก๊อปอีเมลที่ตอบกลับใน 200)
 POST http://localhost:3000/api/register
 Content-Type: application/json
