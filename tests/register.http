@@ -1,0 +1,75 @@
+################################################################################
+#  REGISTER API — FULL TEST SUITE (Issue #1 + #2)
+#  - ต้องรัน `npm run dev` ก่อน            (Next.js เปิดที่ http://localhost:3000)
+#  - คลิก “Send Request” ที่บรรทัด POST เพื่อยิงทีละเคส
+#  - สังเกต Status / JSON ในแท็บ Response :
+#      400, 409  → แสดง error JSON
+#      200       → { "ok": true }
+################################################################################
+
+
+### [CASE-1] Email format invalid                → Expected 400 Invalid email format
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{
+  "email": "bad",
+  "password": "abc12345"
+}
+
+
+
+### [CASE-2] Password length < 8                 → Expected 400 Password must be at least 8 characters
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{
+  "email": "user1@example.com",
+  "password": "short"
+}
+
+
+
+### [CASE-3] Password NO number (A–Z only)       → Expected 400 must include number
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{
+  "email": "user2@example.com",
+  "password": "abcdefgh"
+}
+
+
+
+### [CASE-4] Password NO letter (0–9 only)       → Expected 400 must include letter
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{
+  "email": "user3@example.com",
+  "password": "12345678"
+}
+
+
+
+### [CASE-5] Valid (letter+number ≥ 8)           → Expected 200 { ok:true }
+#    ใช้ {{$timestamp}} เพื่อสุ่มอีเมลไม่ให้ซ้ำ
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{
+  "email": "user{{$timestamp}}@example.com",
+  "password": "abc12345"
+}
+
+
+
+### [CASE-6] Duplicate email                     → Expected 409 Email already used
+#    ส่งอีเมลเดิมซ้ำจาก CASE-5 (ก๊อปอีเมลที่ตอบกลับใน 200)
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{
+  "email": "user_to_dup@example.com",
+  "password": "abc12345"
+}
