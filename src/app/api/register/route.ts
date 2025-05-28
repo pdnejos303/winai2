@@ -3,43 +3,44 @@ import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { jsonError } from "@/lib/response";      // <— ใช้ helper
 
 const prisma = new PrismaClient();
 
 /* ---------- Zod schema: เพิ่มเงื่อนไขตัวอักษร + ตัวเลข ---------- */
 const registerSchema = z.object({
-  email: z.string().email("Invalid email format"),   // email ต้องถูก
+  email: z.string().email("Invalid email format"),                 // email ต้องถูก
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")           // ≥ 8
-    .regex(/[A-Za-z]/, "Password must include at least one letter") // ✓ ต้องมีตัวอักษร
-    .regex(/\d/, "Password must include at least one number"),      // ✓ ต้องมีตัวเลข
+    .min(8, "Password must be at least 8 characters")              // ≥ 8
+    .regex(/[A-Za-z]/, "Password must include at least one letter")// ✓ ตัวอักษร
+    .regex(/\d/, "Password must include at least one number"),     // ✓ ตัวเลข
 });
 
 export async function POST(req: Request) {
-  /* 1. แปลง JSON (ถ้า JSON พัง จะโยน 400 แทน 500) */
+  /* ---------- 1. แปลง JSON ---------- */
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+    return jsonError("Invalid JSON payload", 400);
   }
 
-  /* 2. Validate ด้วย zod */
+  /* ---------- 2. Validate ---------- */
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
     const msg = parsed.error.issues[0].message;
-    return NextResponse.json({ error: msg }, { status: 400 });
+    return jsonError(msg, 400);
   }
 
-  /* ----------- Logic เดิมทั้งหมดยังเหมือนเดิม ----------- */
+  /* ---------- 3. Business Logic ---------- */
   const { email, password } = parsed.data;
   const emailLC = email.toLowerCase();
 
-  // Duplicate check
+  // Duplicate
   const existing = await prisma.user.findUnique({ where: { email: emailLC } });
   if (existing) {
-    return NextResponse.json({ error: "Email already used" }, { status: 409 });
+    return jsonError("Email already used", 409);
   }
 
   // Hash & create user
