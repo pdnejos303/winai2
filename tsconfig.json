@@ -1,27 +1,44 @@
 {
   "compilerOptions": {
+    /* ---------- JS / TS ระดับมาตรฐาน ---------- */
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
+
+    /* ---------- พฤติกรรมคอมไพเลอร์ ---------- */
     "strict": true,
+    "skipLibCheck": true,
     "noEmit": true,
-    "esModuleInterop": true,
+    "allowJs": true,
+    "incremental": true,
+
+    /* ---------- โมดูล / import ---------- */
     "module": "esnext",
     "moduleResolution": "bundler",
+    "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+
+    /* ---------- React / JSX ---------- */
     "jsx": "preserve",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+
+    /* ---------- Path alias ---------- */
+    "baseUrl": ".",                // ทำให้ paths ทำงานจาก root
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": ["src/*"],            // alias หลัก
+      "@/components/*": ["src/components/*"],   // เพิ่ม alias ตรงสำหรับ Components
+      "@/lib/*": ["src/lib/*"]                 // (อนาคต) helper / utils
+    },
+
+    /* ---------- Next.js plugin ---------- */
+    "plugins": [{ "name": "next" }]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+
+  /* ---------- Scope ไฟล์ที่ต้อง compile ---------- */
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }
