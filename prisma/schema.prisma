@@ -8,8 +8,48 @@ datasource db {
 }
 
 model User {
-  id           BigInt   @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
+  id            Int       @id @default(autoincrement())   // PK = Int
+  email         String    @unique
+  name          String?
+  image         String?                                 // <─ NEW ฟิลด์ avatar
+  emailVerified DateTime?                               // <─ NEW ฟิลด์ verify
+  passwordHash  String?                                 // NULL เมื่อ social login
+
+  Accounts      Account[]
+  Sessions      Session[]
+}
+
+model Account {
+  id                 Int     @id @default(autoincrement())
+  userId             Int                                      // FK type ตรงกับ User.id
+  type               String
+  provider           String
+  providerAccountId  String
+  access_token       String? @db.Text
+  expires_at         Int?
+  scope              String?
+  id_token           String? @db.Text
+  token_type         String?
+  refresh_token      String? @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           Int      @id @default(autoincrement())
+  sessionToken String   @unique
+  userId       Int                                      // FK type ตรงกับ User.id
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
