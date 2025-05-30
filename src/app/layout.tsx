@@ -1,5 +1,6 @@
 // src/app/layout.tsx
 import "./globals.css";
+import ToastProvider from "@/components/ui/ToastProvider";
 import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -16,7 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.className}>
-      <body>{children}</body>
+      <body>{children}
+                <ToastProvider /> {/* ← one-line */}
+
+      </body>
     </html>
   );
 }
