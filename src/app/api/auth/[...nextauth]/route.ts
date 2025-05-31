@@ -33,14 +33,24 @@ const prisma = new PrismaClient();
 /*  NEXTAUTH OPTIONS                                                          */
 /* -------------------------------------------------------------------------- */
 export const authOptions: NextAuthOptions = {
-  /* ---------- Prisma Adapter (บันทึก User / Account ใน DB) ---------- */
   adapter: PrismaAdapter(prisma),
-
-  /* ---------------- Session ---------------- */
-  // ใช้ JWT strategy (ไม่สร้างตาราง Session) – ถ้าต้องการ “keep me logged-in”
-  // ข้าม device หลายวัน ให้สลับเป็น   session: { strategy: "database" }
   session: { strategy: "jwt" },
 
+  /* ---------- Secure Cookie (#5) ---------- */
+  cookies: {
+    sessionToken: {
+      // • dev  →  next-auth.session-token   (ไม่ Secure)
+      // • prod → __Secure-next-auth.session-token (Secure)
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
+      options:
+        process.env.NODE_ENV === "production"
+          ? { httpOnly: true, sameSite: "lax", path: "/", secure: true }
+          : { httpOnly: true, sameSite: "lax", path: "/" },
+    },
+  },
   /* ---------------- Providers ---------------- */
   providers: [
     /* ----- 1) Credentials (email + password) -------------------------- */

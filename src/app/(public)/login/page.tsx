@@ -1,43 +1,55 @@
-/**
- * --------------------------------------------------------------------------
- *  /public/login/page.tsx
- *  • ฟอร์ม Login (Credentials) + ปุ่ม Google OAuth
- *  • ใช้ “GoogleButton” component ที่สร้างใหม่
- * --------------------------------------------------------------------------
- */
-import React from "react";
-import { GoogleButton } from "@/components/feature/auth/GoogleButton";
-import Link from "next/link";
+"use client";
+/* --------------------------------------------------------------------------
+ *  /public/login/page.tsx – ฟอร์ม Login + Google OAuth + toast feedback
+ * -------------------------------------------------------------------------- */
+import { useState } from "react";
 import { signIn } from "next-auth/react";
+import toast from "react-hot-toast";
+import Link from "next/link";
+import { GoogleButton } from "@/components/feature/auth/GoogleButton";
 
 export default function LoginPage() {
-  async function onSubmit(data: FormData) {
-    "use server";
-    /* -------- credentials login -------- */
-    await signIn("credentials", {
-      redirect: true,
-      callbackUrl: "/app",
-      email: data.get("email"),
-      password: data.get("password"),
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+
+    const form = e.currentTarget;
+    const email = (form.elements.namedItem("email") as HTMLInputElement).value;
+    const password = (
+      form.elements.namedItem("password") as HTMLInputElement
+    ).value;
+
+    const res = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
     });
+
+    setLoading(false);
+
+    if (res?.ok) {
+      toast.success("Logged in!");
+      window.location.replace("/app");
+    } else {
+      toast.error(res?.error ?? "Login failed");
+    }
   }
 
   return (
     <div className="mx-auto mt-24 max-w-sm space-y-6">
       <h1 className="text-center text-2xl font-bold">Login</h1>
 
-      {/* ------------ Google OAuth ------------- */}
       <GoogleButton />
 
-      {/* ------------ Divider ------------- */}
       <div className="flex items-center gap-2">
         <hr className="flex-1 border-gray-300" />
         <span className="text-xs text-gray-500">or</span>
         <hr className="flex-1 border-gray-300" />
       </div>
 
-      {/* ------------ Credentials Form ------------- */}
-      <form action={onSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <input
           name="email"
           type="email"
@@ -53,15 +65,15 @@ export default function LoginPage() {
           className="w-full rounded-lg border px-3 py-2"
         />
         <button
-          type="submit"
-          className="w-full rounded-lg bg-blue-600 py-2 font-medium text-white hover:bg-blue-700"
+          disabled={loading}
+          className="w-full rounded-lg bg-blue-600 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          Login
+          {loading ? "Signing in…" : "Login"}
         </button>
       </form>
 
       <p className="text-center text-sm">
-        Don’t have an account?{" "}
+        Don&rsquo;t have an account?{" "}
         <Link href="/register" className="text-blue-600 hover:underline">
           Register
         </Link>

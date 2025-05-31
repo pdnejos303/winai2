@@ -76,6 +76,8 @@ Content-Type: application/json
 
 
 
+
+
 # ───────────────────────────────────────────────────────────────────────────────
 #  ISSUE #2  ·  Password strength rules
 # ───────────────────────────────────────────────────────────────────────────────
@@ -115,3 +117,26 @@ Content-Type: application/json
   "email": "user{{$timestamp}}@example.com",
   "password": "abc12345"
 }
+
+
+
+## #3+#4
+### [CASE-7] Payload ไม่เป็น JSON  → 400 JSON
+POST http://localhost:3000/api/register
+Content-Type: text/plain
+
+k
+
+
+################################################################################
+#  RATE LIMIT – ส่ง 6 ครั้งเร็ว ๆ  ต้องโดน 429 ครั้งที่ 6
+################################################################################
+
+### [RATE] Rapid-1
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{ "email": "x{{$timestamp}}@ex.com", "password":"abc12345" }
+
+### [RATE] Rapid-2
+### … ทำซ้ำ Rapid-3..6 เหมือนกัน

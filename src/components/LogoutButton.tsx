@@ -1,22 +1,17 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
+/** ปุ่ม Logout – ใช้ callbackUrl ให้ NextAuth ทำ redirect & เคลียร์คุกกี้แท้ๆ */
 export default function LogoutButton() {
-  const router = useRouter();
-
-  async function handleLogout() {
-    // signOut แล้วไม่ redirect อัตโนมัติ
-    await signOut({ redirect: false });
-    // เองไปหน้า landing
-    router.push("/");
-  }
-
   return (
     <button
-      onClick={handleLogout}
-      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
+      onClick={() =>
+        signOut({
+          callbackUrl: "/login", // กลับหน้า login หลัง logout
+        })
+      }
+      className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
     >
       Logout
     </button>
