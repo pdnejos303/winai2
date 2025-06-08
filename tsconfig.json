@@ -22,11 +22,11 @@
     "jsx": "preserve",
 
     /* ---------- Path alias ---------- */
-    "baseUrl": ".",                // ทำให้ paths ทำงานจาก root
+    "baseUrl": ".",                          // ทำให้ paths ทำงานจาก root
     "paths": {
-      "@/*": ["src/*"],            // alias หลัก
-      "@/components/*": ["src/components/*"],   // เพิ่ม alias ตรงสำหรับ Components
-      "@/lib/*": ["src/lib/*"]                 // (อนาคต) helper / utils
+      "@/*": ["src/*"],                      // alias หลัก
+      "@/components/*": ["src/components/*"],// alias Components
+      "@/lib/*": ["src/lib/*"]               // helper / utils
     },
 
     /* ---------- Next.js plugin ---------- */
@@ -36,6 +36,8 @@
   /* ---------- Scope ไฟล์ที่ต้อง compile ---------- */
   "include": [
     "next-env.d.ts",
+    "src",                 // ← รวมทุกไฟล์ใน src
+    "src/types/**/*",      // ← 🆕 ให้ TS เห็นไฟล์เสริม type
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"

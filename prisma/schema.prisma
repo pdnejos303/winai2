@@ -8,20 +8,21 @@ datasource db {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())   // PK = Int
+  id            Int       @id @default(autoincrement())   
   email         String    @unique
   name          String?
-  image         String?                                 // <─ NEW ฟิลด์ avatar
-  emailVerified DateTime?                               // <─ NEW ฟิลด์ verify
-  passwordHash  String?                                 // NULL เมื่อ social login
+  image         String?                                 
+  emailVerified DateTime?                               
+  passwordHash  String?                                 
 
   Accounts      Account[]
   Sessions      Session[]
+  Tasks         Task[]  // 🔥 เชื่อม Task ทั้งหมดของ user
 }
 
 model Account {
   id                 Int     @id @default(autoincrement())
-  userId             Int                                      // FK type ตรงกับ User.id
+  userId             Int                                      
   type               String
   provider           String
   providerAccountId  String
@@ -40,7 +41,7 @@ model Account {
 model Session {
   id           Int      @id @default(autoincrement())
   sessionToken String   @unique
-  userId       Int                                      // FK type ตรงกับ User.id
+  userId       Int                                      
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -52,4 +53,19 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Task {
+  id          Int      @id @default(autoincrement())  // PK
+  title       String                                 // ชื่อ task
+  description String                                 // รายละเอียด
+  dueDate     DateTime                               // วันครบกำหนด
+  urgency     String                                 // Urgent, Normal, Low
+  category    String                                 // Work, Health, Learning, Relaxing
+  status      String    @default("incompleted")      // Completed, Incompleted
+  createdAt   DateTime  @default(now())              // วันสร้าง
+  updatedAt   DateTime  @updatedAt                   // วันแก้ไขล่าสุด
+
+  userId      Int                                     // FK
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

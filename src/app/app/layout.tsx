@@ -1,15 +1,15 @@
-/* --------------------------------------------------------------------------
- *  layout.tsx  (ใต้ src/app/app/)   –  Redirect ถ้า user ไม่ได้ login
- * -------------------------------------------------------------------------- */
-import { ReactNode } from "react";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+// Path: src/app/app/layout.tsx
+import "../globals.css";               // ← ขยับขึ้นหนึ่งระดับ
+import { Inter } from "next/font/google";
+import ClientProvider from "@/components/ui/ClientProvider";
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
-  /* ถ้าไม่มี session → เด้งไป /login */
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+const inter = Inter({ subsets: ["latin"] });
 
-  return <>{children}</>;          // session มีอยู่ → แสดงเนื้อหา
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  // ❌ ห้ามใส่ <html>/<body> ซ้ำ
+  return (
+    <div className={inter.className}>
+      <ClientProvider>{children}</ClientProvider>
+    </div>
+  );
 }
