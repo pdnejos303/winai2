@@ -1,7 +1,12 @@
-import type { NextConfig } from "next";
+// Path: next.config.ts
+import createIntlPlugin from "next-intl/plugin";
 
-const nextConfig: NextConfig = {
-  /* config options here */
+const withNextIntl = createIntlPlugin();  // <= เรียก plugin หนึ่งครั้ง
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  // ใส่ option Next.js เพิ่มได้ที่นี่
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);  // <= export เป็น object เดียว

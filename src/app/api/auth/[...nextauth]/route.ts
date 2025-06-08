@@ -69,9 +69,12 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
 
-        /* 3. เช็ก hash (bcrypt) */
-        const ok = await bcrypt.compare(creds.password, user.passwordHash);
-        return ok ? { id: String(user.id), email: user.email } : null;
+       /* 3. เช็ก hash (bcrypt) */
+if (!user.passwordHash) return null; // เพิ่มการเช็ค null ก่อน
+
+const ok = await bcrypt.compare(creds.password, user.passwordHash);
+return ok ? { id: String(user.id), email: user.email } : null;
+
       },
     }),
 

@@ -1,8 +1,13 @@
-// src/app/app/page.tsx
+// Path: src/app/app/page.tsx
+
+/* -------------------------------------------------------------------------- */
+/*  page.tsx  (under src/app/app/) – Protected Home Page (after login)       */
+/* -------------------------------------------------------------------------- */
 import { getAuthSession } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
 
 export default async function AppHome() {
+  // ดึง session จาก helper getAuthSession (ใช้ server-side)
   const session = await getAuthSession();
 
   return (

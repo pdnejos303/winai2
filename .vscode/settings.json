@@ -1,0 +1,15 @@
+{
+  /* ---------- ทำให้ VS Code รู้จัก Tailwind ---------- */
+  "files.associations": {
+    "*.css": "tailwindcss"          // ผูกไฟล์ .css กับ grammar Tailwind
+  },
+
+  /* ---------- ปิด lint เดิมที่ไม่เข้าใจ @tailwind / @apply ---------- */
+  "css.lint.unknownAtRules": "ignore",
+
+  /* ---------- (แถม) IntelliSense Class Name ---------- */
+  "tailwindCSS.emmetCompletions": true,     // เสนอ class ใน Emmet
+  "tailwindCSS.includeLanguages": {
+    "tailwindcss": "html"                   // ให้ไฮไลต์เหมือน HTML
+  }
+}
