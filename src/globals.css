@@ -1,3 +1,27 @@
+/* Path: src/app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── สีหลักทุกธีม ─────────────────────────────────────────── */
+@layer base {
+  html.light  { --bg: #e5eadf; --fg: #1d1d1d; }
+  html.dark   { --bg: #000000; --fg: #ffffff; }
+  html.green  { --bg: #ecfdf5; --fg: #064e3b; }
+  html.rose   { --bg: #fff1f2; --fg: #881337; }
+  html.blue   { --bg: #eff6ff; --fg: #1e3a8a; }
+  html.purple { --bg: #f5f3ff; --fg: #4c1d95; }
+
+  body {
+    @apply antialiased;
+    background: var(--bg);
+    color: var(--fg);
+  }
+}
+
+/* Card / Tile ใช้ตัวแปรแทนสีคงที่ */
+@layer components {
+  .card     { @apply rounded-tile border p-6 shadow-sm bg-[color:var(--bg)]; }
+  .tile-bg  { background: var(--bg); }
+  .tile-fg  { color: var(--fg);      }
+}

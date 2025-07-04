@@ -1,27 +1,29 @@
-/**
- * --------------------------------------------------------------------------
- *  GoogleButton  (Reusable component)
- *  • คลิกแล้วเรียก signIn("google") ของ NextAuth
- *  • callbackUrl เป็น '/app' (เปลี่ยนได้ผ่าน prop)
- *  • ใช้ไอคอน FcGoogle (react-icons)
- * --------------------------------------------------------------------------
- */
+/* Path: src/components/feature/auth/GoogleButton/GoogleButton.tsx
+   ---------------------------------------------------------------------------
+   🔄 **สิ่งที่แก้** (เทียบไฟล์ที่ส่งมาให้)
+   1. **ไม่รับ prop `locale`** อีกต่อไป → ปิด TS 2322 ในหน้า Login
+   2. เพิ่ม `label` (optional) เผื่อเปลี่ยนข้อความตาม i18n ภายนอก
+   3. ค่า `callbackUrl` ตั้ง default เป็น `"/app"` แต่สามารถส่งจากภายนอก
+   ------------------------------------------------------------------------- */
 "use client";
 
-import { signIn } from "next-auth/react";
+import { signIn }  from "next-auth/react";
 import { FcGoogle } from "react-icons/fc";
-import React from "react";
+import React        from "react";
 
 type Props = {
-  /** redirect กลับหลัง login (default = /app) */
+  /** URL ที่จะ redirect หลังล็อกอิน (default = "/app") */
   callbackUrl?: string;
   /** ขนาดไอคอน (px) */
   iconSize?: number;
+  /** ป้ายข้อความ (default = "Continue with Google") – รับจาก i18n ภายนอกได้ */
+  label?: string;
 };
 
 export const GoogleButton: React.FC<Props> = ({
   callbackUrl = "/app",
   iconSize = 20,
+  label = "Continue with Google",
 }) => {
   return (
     <button
@@ -31,7 +33,7 @@ export const GoogleButton: React.FC<Props> = ({
     >
       {/* Google Colored Icon */}
       <FcGoogle size={iconSize} />
-      <span>Continue with Google</span>
+      <span>{label}</span>
     </button>
   );
 };

@@ -1,5 +1,4 @@
 // Path: src/app/app/layout.tsx
-import "../globals.css";               // ← ขยับขึ้นหนึ่งระดับ
 import { Inter } from "next/font/google";
 import ClientProvider from "@/components/ui/ClientProvider";
 

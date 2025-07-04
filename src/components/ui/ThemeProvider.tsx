@@ -1,3 +1,4 @@
+// Path: src/components/ui/ThemeProvider.tsx
 "use client";
 
 import {
@@ -5,57 +6,59 @@ import {
   useContext,
   useEffect,
   useState,
-  ReactNode,
+  ReactNode
 } from "react";
 
-type Theme = "light" | "dark";
+export type Theme =
+  | "light" | "dark" | "green" | "rose" | "blue" | "purple";
+
+const ORDER: Theme[] = ["light", "dark", "green", "rose", "blue", "purple"];
 
 interface ThemeCtx {
   theme: Theme;
-  toggle: () => void;
+  cycleTheme: () => void;
+  setTheme: (t: Theme) => void;        /* ← เพิ่ม */
 }
 
 const ThemeContext = createContext<ThemeCtx | undefined>(undefined);
-
-export function useTheme() {
+export const useTheme = () => {
   const ctx = useContext(ThemeContext);
-  if (!ctx)
-    throw new Error("useTheme must be used within <ThemeProvider> context");
+  if (!ctx) throw new Error("useTheme must be inside ThemeProvider");
   return ctx;
-}
+};
 
-/**
- * ThemeProvider
- * ----------------------------------------------------------------
- * • อ่าน theme จาก localStorage หรือระบบ (prefers-color-scheme) ครั้งแรก  
- * • ใส่/ถอด class `dark` บน <html> เพื่อให้ Tailwind darkMode:'class' ทำงาน  
- * • เก็บค่าใหม่กลับ localStorage เมื่อสลับ  
- */
 export default function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, _setTheme] = useState<Theme>("light");
 
-  /* อ่านค่าเริ่มต้นครั้งเดียว */
+  /* โหลดค่าแรก */
   useEffect(() => {
-    const stored = (typeof window !== "undefined"
-      ? (localStorage.getItem("theme") as Theme | null)
-      : null) ?? (window.matchMedia("(prefers-color-scheme: dark)").matches
+    const stored =
+      (typeof window !== "undefined"
+        ? (localStorage.getItem("theme") as Theme | null)
+        : null) ??
+      (window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
         : "light");
-
-    setTheme(stored);
+    _setTheme(stored);
   }, []);
 
-  /* ใส่ / ถอด class dark + sync localStorage */
+  /* ใส่ class + persist */
   useEffect(() => {
     const html = document.documentElement;
-    html.classList.toggle("dark", theme === "dark");
+    ORDER.forEach((t) => html.classList.remove(t));
+    html.classList.add(theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
-
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        cycleTheme: () =>
+          _setTheme((p) => ORDER[(ORDER.indexOf(p) + 1) % ORDER.length]),
+        setTheme: (t) => _setTheme(t)
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

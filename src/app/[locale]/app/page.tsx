@@ -1,4 +1,4 @@
-// Path: src/app/app/page.tsx
+// Path: src/app/[locale]/app/page.tsx
 
 /* -------------------------------------------------------------------------- */
 /*  page.tsx  (under src/app/app/) – Protected Home Page (after login)       */

@@ -1,10 +1,15 @@
-// Path: src/components/task/TaskCard.tsx
+/* Path: src/components/task/TaskCard.tsx
+   ---------------------------------------------------------------------------
+   ✔ parseISO เพราะ API คืน string
+   ✔ เลือก locale date-fns ให้ตรง /en /th /ja
+   ------------------------------------------------------------------------- */
 "use client";
 
 import { Task } from "@prisma/client";
-import { format, formatDistanceStrict } from "date-fns";
-import { th } from "date-fns/locale";
+import { format, formatDistanceStrict, parseISO } from "date-fns";
+import { th, ja, enUS } from "date-fns/locale";
 import clsx from "clsx";
+import { useParams } from "next/navigation";
 
 type Props = {
   task: Task;
@@ -12,37 +17,37 @@ type Props = {
 };
 
 export default function TaskCard({ task, onToggle }: Props) {
+  const { locale } = useParams<{ locale: string }>();
+  const dfLocale   = locale === "th" ? th : locale === "ja" ? ja : enUS;
+
+  /* 🟢 ensure Date object */
+  const due = typeof task.dueDate === "string" ? parseISO(task.dueDate) : task.dueDate;
+
   const done = task.status === "completed";
-  const diff = formatDistanceStrict(task.dueDate, new Date(), {
-    locale: th,
+  const diff = formatDistanceStrict(due, new Date(), {
+    locale: dfLocale,
     roundingMethod: "floor",
   });
 
   return (
     <div className="rounded-tile border bg-brand-whiteTile p-6 shadow-sm">
-      {/* Header */}
+      {/* header */}
       <div className="flex justify-between">
         <h3 className="font-bold text-cardTitle">{task.title}</h3>
         <input
           type="checkbox"
           checked={done}
-          onChange={() =>
-            onToggle(task.id, done ? "incompleted" : "completed")
-          }
+          onChange={() => onToggle(task.id, done ? "incompleted" : "completed")}
           className="h-5 w-5 accent-brand-green"
         />
       </div>
 
-      {/* Description */}
       <p className="line-clamp-3 py-2 text-sm text-gray-700">{task.description}</p>
       <hr className="my-3 border-gray-200" />
 
       <div className="space-y-1 text-xs">
-        <div>
-          {format(task.dueDate, "d MMMM yyyy", { locale: th })}(
-          {format(task.dueDate, "(dd/MM/yyyy)", { locale: th })})
-        </div>
-        <div>{format(task.dueDate, "HH:mm")} – {format(task.dueDate, "HH:mm")}</div>
+        <div>{format(due, "d MMMM yyyy", { locale: dfLocale })}</div>
+        <div>{format(due, "HH:mm")}</div>
         <div>{task.category}</div>
       </div>
 
@@ -52,16 +57,13 @@ export default function TaskCard({ task, onToggle }: Props) {
         {done ? "Completed" : `Due in ${diff}`}
       </p>
 
-      {/* Progress bar */}
-      <div className="h-1 w-full rounded-full bg-brand-progress/60 my-3" />
-
       <button
         onClick={() => onToggle(task.id, done ? "incompleted" : "completed")}
         className={clsx(
-          "flex w-full items-center justify-center rounded-md py-3 text-lg",
+          "mt-3 flex w-full items-center justify-center rounded-md py-3 text-lg",
           done
             ? "bg-brand-tick text-brand-green"
-            : "bg-brand-tick hover:bg-brand-tick/80"
+            : "bg-brand-tick hover:bg-brand-tick/80",
         )}
       >
         ✓

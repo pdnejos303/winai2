@@ -1,4 +1,4 @@
-// Path: src/app/app/tasks/page.tsx
+// Path: src/app/[locale]/app/tasks/page.tsx
 import TaskGrid from "@/components/task/TaskGrid";
 
 export const metadata = { title: "Tasks" };

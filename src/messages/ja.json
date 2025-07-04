@@ -1,1 +1,21 @@
-{ "tasks": "タスク", "home": "ホーム", "addTask": "タスクを追加" }
+{
+  "login": {
+    "title":    "ログイン",
+    "email":    "メール",
+    "password": "パスワード",
+    "login":    "ログイン",
+    "signing":  "ログイン中…",
+    "or":       "または",
+    "noAccount": "アカウントがありませんか？",
+    "register": "登録",
+    "success":  "ログイン成功！",
+    "failed":   "ログイン失敗"
+  },
+  "dashboard": {
+    "welcome": "お帰りなさい"
+  },
+    "home": {
+    "welcome": "ようこそ Winai2 へ",
+    "goLogin": "ログインページへ"
+  }
+}

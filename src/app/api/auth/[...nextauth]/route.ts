@@ -22,7 +22,7 @@ import Google from "next-auth/providers/google";
 /* ---------- Prisma & Adapter ---------- */
 import { PrismaClient } from "@prisma/client";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-
+  
 /* ---------- Utilities ---------- */
 import bcrypt from "bcryptjs";
 
