@@ -33,6 +33,7 @@
     "plugins": [{ "name": "next" }]
   },
 
+
   /* ---------- Scope ไฟล์ที่ต้อง compile ---------- */
   "include": [
     "next-env.d.ts",
@@ -43,4 +44,6 @@
     ".next/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
+
+  
 }
