@@ -1,73 +1,129 @@
-/* Path: src/components/task/TaskCard.tsx
-   ---------------------------------------------------------------------------
-   ✔ parseISO เพราะ API คืน string
-   ✔ เลือก locale date-fns ให้ตรง /en /th /ja
-   ------------------------------------------------------------------------- */
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: src/components/task/TaskCard.tsx
+// DESC: Card งานตามดีไซน์ใหม่
+//       • สี่เหลี่ยมมุมขวาบน = เลือก (เพื่อ batch action)
+//       • ปุ่มเขียวใหญ่ล่าง = toggle completed
+//       • ขอบน้ำเงิน = ถูกเลือก, การ์ดจาง/ขีดฆ่าเมื่อ completed
+//       • ✎ / 🗑 โชว์เมื่อ hover หรือถูกเลือก
+// ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
+import { useState } from "react";
 import { Task } from "@prisma/client";
-import { format, formatDistanceStrict, parseISO } from "date-fns";
-import { th, ja, enUS } from "date-fns/locale";
-import clsx from "clsx";
-import { useParams } from "next/navigation";
+import EditTaskModal from "./EditTaskModal";
 
-type Props = {
+/* -------------------------------------------------------------------------- */
+interface Props {
   task: Task;
-  onToggle: (id: number, newStatus: "completed" | "incompleted") => void;
-};
+  selected: boolean;
+  onSelect: (id: number) => void;
+  onToggle: (id: number, s: "completed" | "incompleted") => void;
+  onDeleted: (id: number) => void;
+  onUpdated: (t: Task) => void;
+}
+/* -------------------------------------------------------------------------- */
+export default function TaskCard({
+  task,
+  selected,
+  onSelect,
+  onToggle,
+  onDeleted,
+  onUpdated,
+}: Props) {
+  const [hover, setHover] = useState(false);
+  const [editing, setEditing] = useState(false);
 
-export default function TaskCard({ task, onToggle }: Props) {
-  const { locale } = useParams<{ locale: string }>();
-  const dfLocale   = locale === "th" ? th : locale === "ja" ? ja : enUS;
+  async function handleDelete() {
+    if (!confirm("Delete this task?")) return;
+    await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+    onDeleted(task.id);
+  }
 
-  /* 🟢 ensure Date object */
-  const due = typeof task.dueDate === "string" ? parseISO(task.dueDate) : task.dueDate;
-
-  const done = task.status === "completed";
-  const diff = formatDistanceStrict(due, new Date(), {
-    locale: dfLocale,
-    roundingMethod: "floor",
-  });
+  const border = selected ? "border-2 border-blue-500" : "border";
+  const faded = task.status === "completed" ? "opacity-60" : "";
 
   return (
-    <div className="rounded-tile border bg-brand-whiteTile p-6 shadow-sm">
-      {/* header */}
-      <div className="flex justify-between">
-        <h3 className="font-bold text-cardTitle">{task.title}</h3>
-        <input
-          type="checkbox"
-          checked={done}
-          onChange={() => onToggle(task.id, done ? "incompleted" : "completed")}
-          className="h-5 w-5 accent-brand-green"
-        />
-      </div>
-
-      <p className="line-clamp-3 py-2 text-sm text-gray-700">{task.description}</p>
-      <hr className="my-3 border-gray-200" />
-
-      <div className="space-y-1 text-xs">
-        <div>{format(due, "d MMMM yyyy", { locale: dfLocale })}</div>
-        <div>{format(due, "HH:mm")}</div>
-        <div>{task.category}</div>
-      </div>
-
-      <hr className="my-3 border-gray-200" />
-
-      <p className="text-center text-sm font-medium">
-        {done ? "Completed" : `Due in ${diff}`}
-      </p>
-
-      <button
-        onClick={() => onToggle(task.id, done ? "incompleted" : "completed")}
-        className={clsx(
-          "mt-3 flex w-full items-center justify-center rounded-md py-3 text-lg",
-          done
-            ? "bg-brand-tick text-brand-green"
-            : "bg-brand-tick hover:bg-brand-tick/80",
-        )}
+    <>
+      <div
+        className={`relative rounded-lg p-4 shadow transition hover:shadow-lg ${border} ${faded}`}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
       >
-        ✓
-      </button>
-    </div>
+        {/* ── select square ── */}
+        <button
+          onClick={() => onSelect(task.id)}
+          className={`absolute right-3 top-3 h-5 w-5 rounded-sm border ${
+            selected ? "bg-blue-500" : "bg-white"
+          }`}
+        />
+
+        {/* ── title & description ── */}
+        <h3
+          className={`mb-1 text-lg font-semibold ${
+            task.status === "completed" ? "line-through" : ""
+          }`}
+        >
+          {task.title}
+        </h3>
+        {task.description && (
+          <p
+            className={`mb-2 line-clamp-2 text-sm ${
+              task.status === "completed"
+                ? "text-gray-500 line-through"
+                : "text-gray-600"
+            }`}
+          >
+            {task.description}
+          </p>
+        )}
+
+        {/* ── due date ตัวอย่าง ── */}
+        <p className="text-sm text-gray-500">
+          {new Date(task.dueDate).toLocaleDateString()}
+        </p>
+
+        {/* ── action bar ── */}
+        <div className="mt-6 flex gap-3">
+          {/* toggle completed */}
+          <button
+            onClick={() =>
+              onToggle(
+                task.id,
+                task.status === "completed" ? "incompleted" : "completed",
+              )
+            }
+            className="flex-1 rounded bg-emerald-500 py-3 text-white hover:bg-emerald-600"
+          >
+            ✓
+          </button>
+
+          {/* edit / delete — โชว์เมื่อ hover หรือ selected */}
+          {(hover || selected) && (
+            <>
+              <button
+                onClick={() => setEditing(true)}
+                className="flex-1 rounded bg-sky-200 py-3 text-sky-800 hover:bg-sky-300"
+              >
+                ✎
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 rounded bg-rose-500 py-3 text-white hover:bg-rose-600"
+              >
+                🗑
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {editing && (
+        <EditTaskModal
+          task={task}
+          setOpen={setEditing}
+          onUpdated={onUpdated}
+        />
+      )}
+    </>
   );
 }

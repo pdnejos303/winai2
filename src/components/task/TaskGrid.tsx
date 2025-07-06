@@ -1,9 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE: src/components/task/TaskGrid.tsx
-// DESC: Grid แสดง Task + ปุ่ม “+ Add Task”  ด้านขวา
-// CHANGE:
-//   • ใช้ state show, setShow  ↔  ส่งเข้า <AddTaskModal open …> 
-//   • ไม่ใช้ && AddTaskModal  แบบเดิม  -> แก้ TS2739
+// DESC: Grid แสดง Task + Filter + Add
+//       • PATCH status แล้วอัปเดต state ด้าน client
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
@@ -14,6 +12,7 @@ import TaskFilters, { TaskFiltersState } from "./TaskFilters";
 import AddTaskModal from "./AddTaskModal";
 import { Task } from "@prisma/client";
 
+/* ---------- default filter ---------- */
 const defaultFilters: TaskFiltersState = {
   status: "all",
   urgency: "all",
@@ -25,20 +24,21 @@ export default function TaskGrid() {
   const locale = pathname.split("/")[1] || "en";
   const router = useRouter();
 
-  const [filters, setFilters] = useState(defaultFilters);
+  const [filters, setFilters] = useState<TaskFiltersState>(defaultFilters);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
-  const [show, setShow] = useState(false);     // CHANGE: คุมโมดาล
+  const [showAdd, setShowAdd] = useState(false);
 
   const reqId = useRef(0);
 
   useEffect(() => setFilters(defaultFilters), [locale]);
 
-  /* -------- fetch tasks (โค้ดเดิม) -------- */
-  /*   … (ย่อเฉพาะส่วน fetch เพื่อประหยัดบรรทัด – แต่ *ไม่มี* การตัด logic) */
+  /* ---------- fetch list ---------- */
   useEffect(() => {
     const id = ++reqId.current;
     setLoading(true);
+
     (async () => {
       try {
         const qs = new URLSearchParams();
@@ -49,53 +49,86 @@ export default function TaskGrid() {
         const res = await fetch("/api/tasks?" + qs.toString(), {
           cache: "no-store",
         });
+
         if (res.status === 401) {
           router.replace(`/${locale}/login`);
           return;
         }
-        if (!res.ok) {
-          console.error("fetch /api/tasks:", res.status);
-          return;
-        }
         const data = await res.json();
         if (id === reqId.current && Array.isArray(data)) setTasks(data);
+      } catch (err) {
+        console.error(err);
       } finally {
         if (id === reqId.current) setLoading(false);
       }
     })();
   }, [filters, locale, router]);
 
-  /* -------- helpers -------- */
-  function handleCreated(task: Task) {
-    setTasks((prev) => [...prev, task].sort((a, b) => +a.dueDate - +b.dueDate));
+  /* ---------- helpers ---------- */
+  const categories = ["all", ...new Set(tasks.map((t) => t.category ?? "none"))];
+
+  const toggleSelect = (id: number) =>
+    setSelectedIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  /* ---------- PATCH status ---------- */
+  async function handleToggle(
+    id: number,
+    status: "completed" | "incompleted",
+  ) {
+    // optimistic update
+    setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
+
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      console.error("PATCH status failed:", err);
+      /* ---- revert if fail ---- */               // FIX: ลบ , หลัง ) map
+      setTasks((prev) =>
+        prev.map((x) =>
+          x.id === id
+            ? {
+                ...x,
+                status: status === "completed" ? "incompleted" : "completed",
+              }
+            : x,
+        ),
+      );
+      alert("Save failed");
+    }
   }
 
-  const categories = [
-    "all",
-    ...new Set(
-      (Array.isArray(tasks) ? tasks : []).map((t) => t.category ?? "none"),
-    ),
-  ];
-
-  /* -------- JSX -------- */
+  /* ---------- JSX ---------- */
   return (
     <div className="space-y-6">
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* BAR */}
+      <div className="flex items-center justify-between gap-4">
         <TaskFilters
           value={filters}
           onChange={setFilters}
           categories={categories}
         />
-        <button
-          onClick={() => setShow(true)}
-          className="rounded-md bg-brand-green px-4 py-2 font-medium text-white hover:opacity-90"
-        >
-          + Add Task
-        </button>
+        <div className="flex items-center gap-2">
+          {selectedIds.length > 0 && (
+            <span className="text-sm text-blue-600">
+              {selectedIds.length} selected
+            </span>
+          )}
+          <button
+            onClick={() => setShowAdd(true)}
+            className="rounded-md bg-brand-green px-4 py-2 font-medium text-white hover:opacity-90"
+          >
+            + Add Task
+          </button>
+        </div>
       </div>
 
-      {/* grid / loading / empty */}
+      {/* GRID */}
       {loading && tasks.length === 0 ? (
         <p className="py-10 text-center">Loading…</p>
       ) : tasks.length === 0 ? (
@@ -106,21 +139,28 @@ export default function TaskGrid() {
             <TaskCard
               key={`${t.id}-${t.status}`}
               task={t}
-              onToggle={(id, status) => {
-                setTasks((prev) =>
-                  prev.map((x) => (x.id === id ? { ...x, status } : x)),
-                );
+              selected={selectedIds.includes(t.id)}
+              onSelect={toggleSelect}
+              onToggle={handleToggle}
+              onDeleted={(id) => {
+                setTasks((p) => p.filter((x) => x.id !== id));
+                setSelectedIds((p) => p.filter((x) => x !== id));
               }}
+              onUpdated={(u) =>
+                setTasks((p) => p.map((x) => (x.id === u.id ? u : x)))
+              }
             />
           ))}
         </div>
       )}
 
-      {/* Modal (controlled) */}
+      {/* MODAL ADD */}
       <AddTaskModal
-        open={show}             // CHANGE
-        setOpen={setShow}       // CHANGE
-        onCreated={handleCreated}
+        open={showAdd}
+        setOpen={setShowAdd}
+        onCreated={(t) =>
+          setTasks((p) => [...p, t].sort((a, b) => +a.dueDate - +b.dueDate))
+        }
       />
     </div>
   );
