@@ -1,57 +1,59 @@
-/**
- * Tasks Page (simplified)
- * -----------------------
- * • แสดงปุ่ม + Add Task (มาจาก AddTaskModal เอง)
- * • สร้าง Task แล้วดึงรายการมาโชว์ใน list
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: src/app/en/app/tasks/page.tsx
+// DESC: หน้า Tasks – มีปุ่มเดียว กดครั้งเดียวเปิดฟอร์ม (ไม่มีปุ่มซ้อนอีก)
+// ─────────────────────────────────────────────────────────────────────────────
 
 "use client";
 
 import { useEffect, useState } from "react";
-import AddTaskModal from "@/components/task/AddTaskModal";
 import { Task } from "@prisma/client";
+import AddTaskModal from "@/components/task/AddTaskModal";
 
 /* -------------------------------------------------------------------------- */
-/*  Component                                                                 */
+/* Component                                                                  */
 /* -------------------------------------------------------------------------- */
 export default function TasksPage() {
+  /* ---------- state ---------- */
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  /* ---------- โหลด Task ---------- */
+  /* ---------- fetch tasks ---------- */
   async function fetchTasks() {
     try {
       const res = await fetch("/api/tasks", { credentials: "include" });
       if (!res.ok) throw new Error(await res.text());
       const data: Task[] = await res.json();
       setTasks(data);
-    } catch (err) {
-      console.error("fetchTasks error:", err);
     } finally {
       setLoading(false);
     }
   }
-
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  /* ---------- callback หลังสร้าง Task ---------- */
+  /* ---------- callback เมื่อสร้าง Task ---------- */
   const handleCreated = (task: Task) => {
     setTasks((prev) => [task, ...prev]);
   };
 
   /* ---------------------------------------------------------------------- */
-  /*  JSX                                                                    */
+  /* JSX                                                                    */
   /* ---------------------------------------------------------------------- */
   return (
     <div className="px-4 py-6">
-      {/* ปุ่ม + Add Task รวมอยู่ใน AddTaskModal แล้ว ⇒ วางมุมขวาบนได้เลย */}
+      {/* Top bar – ปุ่มเดียวเรียกโมดาล */}
       <div className="mb-6 flex justify-end">
-        <AddTaskModal onCreated={handleCreated} />
+        <button
+          onClick={() => setModalOpen(true)}
+          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+        >
+          + Add Task
+        </button>
       </div>
 
-      {/* รายการงาน */}
+      {/* รายการงานแบบง่าย */}
       {loading ? (
         <p>Loading…</p>
       ) : tasks.length === 0 ? (
@@ -71,6 +73,13 @@ export default function TasksPage() {
           ))}
         </ul>
       )}
+
+      {/* Modal controlled */}
+      <AddTaskModal
+        open={modalOpen}
+        setOpen={setModalOpen}
+        onCreated={handleCreated}
+      />
     </div>
   );
 }

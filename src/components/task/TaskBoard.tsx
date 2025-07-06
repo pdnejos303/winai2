@@ -1,4 +1,10 @@
-// Path: src/components/task/TaskBoard.tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: src/components/task/TaskBoard.tsx
+// DESC: Board ที่มี Tile “Add Task”  -> เปิดโมดาลครั้งเดียว
+// CHANGE:
+//   • เพิ่ม modalOpen, setModalOpen  ส่งให้ <AddTaskModal>
+//   • เดิมใส่ modal แบบ &&   → TS2739  (ขาด prop)  แก้เรียบร้อย
+// ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
 import { useState } from "react";
@@ -16,7 +22,7 @@ export default function TaskBoard() {
     category: "all",
   });
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false); // CHANGE: state คุมโมดาล
 
   /* ---------- derived ---------- */
   const categories = Array.from(new Set(tasks.map((t) => t.category)));
@@ -46,18 +52,17 @@ export default function TaskBoard() {
         />
       </div>
 
-      {/* Grid (stand-alone – ไม่ต้องส่ง props) */}
+      {/* Grid */}
       <TaskGrid />
 
-      {/* Modal */}
-      {modalOpen && (
-        <AddTaskModal
-          onCreated={(t) => {
-            setTasks((prev) => [...prev, t]);
-            setModalOpen(false);
-          }}
-        />
-      )}
+      {/* Modal (controlled) */}
+      <AddTaskModal
+        open={modalOpen}               // CHANGE
+        setOpen={setModalOpen}         // CHANGE
+        onCreated={(t) => {
+          setTasks((prev) => [...prev, t]);
+        }}
+      />
     </>
   );
 }

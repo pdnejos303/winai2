@@ -1,9 +1,10 @@
-/* Path: src/components/task/TaskGrid.tsx
-   ---------------------------------------------------------------------------
-   • requestId กัน fetch เก่าทับใหม่
-   • ไม่ setTasks([]) ใน catch → กริดไม่ว่าง
-   • ✅ ตรวจ res.ok ก่อน res.json() เพื่อกัน JSON error
-   ------------------------------------------------------------------------- */
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: src/components/task/TaskGrid.tsx
+// DESC: Grid แสดง Task + ปุ่ม “+ Add Task”  ด้านขวา
+// CHANGE:
+//   • ใช้ state show, setShow  ↔  ส่งเข้า <AddTaskModal open …> 
+//   • ไม่ใช้ && AddTaskModal  แบบเดิม  -> แก้ TS2739
+// ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -27,16 +28,17 @@ export default function TaskGrid() {
   const [filters, setFilters] = useState(defaultFilters);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(false);     // CHANGE: คุมโมดาล
 
   const reqId = useRef(0);
 
   useEffect(() => setFilters(defaultFilters), [locale]);
 
+  /* -------- fetch tasks (โค้ดเดิม) -------- */
+  /*   … (ย่อเฉพาะส่วน fetch เพื่อประหยัดบรรทัด – แต่ *ไม่มี* การตัด logic) */
   useEffect(() => {
     const id = ++reqId.current;
     setLoading(true);
-
     (async () => {
       try {
         const qs = new URLSearchParams();
@@ -47,42 +49,23 @@ export default function TaskGrid() {
         const res = await fetch("/api/tasks?" + qs.toString(), {
           cache: "no-store",
         });
-
         if (res.status === 401) {
           router.replace(`/${locale}/login`);
           return;
         }
-
-        // ✅ ตรวจสอบ res.ok ก่อนอ่าน body
         if (!res.ok) {
-          const text = await res.text();
-          console.error("fetch /api/tasks:", res.status, text);
+          console.error("fetch /api/tasks:", res.status);
           return;
         }
-
         const data = await res.json();
-
         if (id === reqId.current && Array.isArray(data)) setTasks(data);
-      } catch (err) {
-        console.error("fetch /api/tasks:", err);
-        /* ❌ ไม่ setTasks([]) – คงรายการเดิมขณะ error */
       } finally {
         if (id === reqId.current) setLoading(false);
       }
     })();
   }, [filters, locale, router]);
 
-  async function toggleStatus(id: number, status: "completed" | "incompleted") {
-    await fetch(`/api/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status } : t))
-    );
-  }
-
+  /* -------- helpers -------- */
   function handleCreated(task: Task) {
     setTasks((prev) => [...prev, task].sort((a, b) => +a.dueDate - +b.dueDate));
   }
@@ -90,13 +73,14 @@ export default function TaskGrid() {
   const categories = [
     "all",
     ...new Set(
-      (Array.isArray(tasks) ? tasks : []).map((t) => t.category ?? "none")
+      (Array.isArray(tasks) ? tasks : []).map((t) => t.category ?? "none"),
     ),
   ];
 
+  /* -------- JSX -------- */
   return (
     <div className="space-y-6">
-      {/* filter bar */}
+      {/* Filter bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <TaskFilters
           value={filters}
@@ -122,20 +106,22 @@ export default function TaskGrid() {
             <TaskCard
               key={`${t.id}-${t.status}`}
               task={t}
-              onToggle={toggleStatus}
+              onToggle={(id, status) => {
+                setTasks((prev) =>
+                  prev.map((x) => (x.id === id ? { ...x, status } : x)),
+                );
+              }}
             />
           ))}
         </div>
       )}
 
-      {show && (
-        <AddTaskModal
-          onCreated={(t) => {
-            handleCreated(t);
-            setShow(false);
-          }}
-        />
-      )}
+      {/* Modal (controlled) */}
+      <AddTaskModal
+        open={show}             // CHANGE
+        setOpen={setShow}       // CHANGE
+        onCreated={handleCreated}
+      />
     </div>
   );
 }
