@@ -1,3 +1,8 @@
+// ────────────────────────────────────────────────────────────────
+// FILE: prisma/schema.prisma
+// DESC: + Category table  |  Task.category → FK  (categoryId)
+//       เก็บ icon ชื่อ lucide (string) 1-ครั้ง ใช้ร่วมหลาย Task
+// ────────────────────────────────────────────────────────────────
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,22 +12,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* -----------------------------------------------------------------
+ *  USER & AUTH TABLES (ไม่เปลี่ยน)
+ * ----------------------------------------------------------------*/
 model User {
-  id            Int       @id @default(autoincrement())   
+  id            Int       @id @default(autoincrement())
   email         String    @unique
   name          String?
-  image         String?                                 
-  emailVerified DateTime?                               
-  passwordHash  String?                                 
+  image         String?
+  emailVerified DateTime?
+  passwordHash  String?
 
   Accounts      Account[]
   Sessions      Session[]
-  Tasks         Task[]  // 🔥 เชื่อม Task ทั้งหมดของ user
+  Tasks         Task[]        // 🔥 1:N relation to Task
 }
 
 model Account {
-  id                 Int     @id @default(autoincrement())
-  userId             Int                                      
+  id                 Int    @id @default(autoincrement())
+  userId             Int
   type               String
   provider           String
   providerAccountId  String
@@ -41,7 +49,7 @@ model Account {
 model Session {
   id           Int      @id @default(autoincrement())
   sessionToken String   @unique
-  userId       Int                                      
+  userId       Int
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -55,17 +63,36 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Task {
-  id          Int      @id @default(autoincrement())  // PK
-  title       String                                 // ชื่อ task
-  description String                                 // รายละเอียด
-  dueDate     DateTime                               // วันครบกำหนด
-  urgency     String                                 // Urgent, Normal, Low
-  category    String                                 // Work, Health, Learning, Relaxing
-  status      String    @default("incompleted")      // Completed, Incompleted
-  createdAt   DateTime  @default(now())              // วันสร้าง
-  updatedAt   DateTime  @updatedAt                   // วันแก้ไขล่าสุด
+/* -----------------------------------------------------------------
+ *  NEW TABLE: Category  (เก็บชื่อ + ไอคอน)
+ * ----------------------------------------------------------------*/
+model Category {
+  id    Int    @id @default(autoincrement())
+  name  String @unique                      // เช่น Work, Health …
+  icon  String                              // lucide icon name (เช่น "Briefcase")
 
-  userId      Int                                     // FK
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // ── relation ────────────────────────────────────────────────
+  tasks Task[]                              // 1 : N  ← Task.categoryId
+}
+
+/* -----------------------------------------------------------------
+ *  TASK TABLE (ปรับให้ใช้ FK categoryId)
+ * ----------------------------------------------------------------*/
+model Task {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  dueDate     DateTime
+  urgency     String                     // Urgent, Normal, Low
+  status      String   @default("incompleted")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // ── relation to Category ───────────────────────────────────
+  categoryId  Int?                       // FK (nullable ในกรณียังไม่เลือก)
+  category    Category?  @relation(fields: [categoryId], references: [id])
+
+  // ── relation to User ───────────────────────────────────────
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
