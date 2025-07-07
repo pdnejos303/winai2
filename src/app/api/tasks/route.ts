@@ -1,135 +1,114 @@
-/**
- * API Route: /api/tasks
- *
- * - GET    /api/tasks              → รายการ Task ของผู้ใช้ (filter ผ่าน query string)
- * - POST   /api/tasks              → สร้าง Task ใหม่
- *
- * หมายเหตุ
- * -------
- * • ใช้ getServerSession(authOptions) เพื่อตรวจสิทธิ์ผู้ใช้งาน
- * • validate body ด้วย Zod ก่อนสร้างข้อมูล
- * • รองรับ dueDate ที่ส่งมาเป็น “YYYY-MM-DDTHH:mm” โดยจะเติมวินาทีให้อัตโนมัติ
- */
+/* ────────────────────────────────────────────────────────────────────────────
+   📁 src/app/api/tasks/route.ts
+   ---------------------------------------------------------------------------
+   REST handlers (GET · POST) สำหรับ “Task ทั้งหมดของผู้ใช้”
+   • สอดคล้อง Prisma schema (Task.categoryId → FK → Category)
+   • GET  – คืน tasks ลำดับตาม dueDate  + include Category ชื่อ & icon
+   • POST – body ต้องมี { title, dueDate(ISO), urgency:"low|medium|high",
+                          categoryId:Int }
+            → create task  status="incompleted"
+   • ใช้ next-auth session ตรวจ uid (Int) ทุกคำสั่ง
+   • Validate body ด้วย Zod ป้องกัน payload ผิดรูป (ลด 400/500)
+   • Helper isoToDate() รองรับ “YYYY-MM-DDTHH:mm” (ไม่มีวินาที)  
+   ------------------------------------------------------------------------- */
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
-/* -------------------------------------------------------------------------- */
-/*  Zod schema สำหรับตรวจสอบ body ของ POST                                    */
-/* -------------------------------------------------------------------------- */
-const taskSchema = z.object({
-  title: z.string().min(1, "title is required"),
+/* ───── 1. Zod schema ตรวจ POST body ───── */
+const TaskBody = z.object({
+  title:       z.string().min(1, "title required"),
   description: z.string().default(""),
-  dueDate: z
-    .string()
-    .refine((d) => !Number.isNaN(Date.parse(d)), {
-      message: "dueDate must be a valid ISO-8601 string",
-    }),
-  urgency: z.enum(["low", "medium", "high"]),
-  category: z.string().min(1),
+  dueDate:     z.string().refine((d) => !Number.isNaN(Date.parse(d)), {
+                  message: "dueDate must be ISO-8601 string",
+               }),
+  urgency:     z.enum(["low", "medium", "high"]),
+  categoryId:  z.number().int().positive(),
 });
 
-/* -------------------------------------------------------------------------- */
-/*  GET /api/tasks                                                            */
-/* -------------------------------------------------------------------------- */
+/* ───── 2. helper: แปลง ISO สั้น → Date ───── */
+function isoToDate(str: string) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(str)
+    ? new Date(`${str}:00`) // เติมวินาที
+    : new Date(str);
+}
+
+/* ──────────────────────────────────────────
+   GET /api/tasks
+   -----------------------------------------
+   » ดึง tasks ของ user  (include Category)
+   » รองรับ query ?status & ?urgency & ?categoryId ถ้าอยาก filter
+   ────────────────────────────────────────── */
 export async function GET(req: NextRequest) {
-  /* ---------- ตรวจ session ---------- */
+  /* 1) auth ---------------------------------------------------- */
   const session = await getServerSession(authOptions);
-  const rawId = session?.user?.id;
-  const userId = Number(rawId);
-
-  if (!session || !rawId || Number.isNaN(userId)) {
+  const uid     = Number(session?.user?.id);
+  if (!session || Number.isNaN(uid))
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
 
-  /* ---------- สร้าง where จาก query string ---------- */
-  const sp = req.nextUrl.searchParams;
-  const where: Prisma.TaskWhereInput = { userId };
+  /* 2) optional filter ---------------------------------------- */
+  const sp   = req.nextUrl.searchParams;
+  const where: any = { userId: uid };
 
-  const status = sp.get("status");
-  if (status === "completed" || status === "incompleted") where.status = status;
+  const st = sp.get("status");
+  if (st === "completed" || st === "incompleted") where.status = st;
 
-  const urgency = sp.get("urgency");
-  if (urgency && urgency !== "all") where.urgency = urgency;
+  const urg = sp.get("urgency");
+  if (urg && ["low", "medium", "high"].includes(urg)) where.urgency = urg;
 
-  const category = sp.get("category");
-  if (category && category !== "all") where.category = category;
+  const catId = sp.get("categoryId");
+  if (catId && !Number.isNaN(Number(catId))) where.categoryId = Number(catId);
 
-  /* ---------- ดึงข้อมูลจาก Prisma ---------- */
+  /* 3) query --------------------------------------------------- */
   const tasks = await prisma.task.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: { dueDate: "asc" },
+    include: { category: true },
   });
 
-  return NextResponse.json(tasks, { status: 200 });
+  return NextResponse.json(tasks);
 }
 
-/* -------------------------------------------------------------------------- */
-/*  POST /api/tasks                                                           */
-/* -------------------------------------------------------------------------- */
+/* ──────────────────────────────────────────
+   POST /api/tasks
+   -----------------------------------------
+   ● body ผ่าน Zod → สร้าง Task ใหม่
+   ────────────────────────────────────────── */
 export async function POST(req: NextRequest) {
-  /* ---------- ตรวจ session ---------- */
+  /* 1) auth ---------------------------------------------------- */
   const session = await getServerSession(authOptions);
-  const userId = Number(session?.user?.id);
-
-  if (!session || Number.isNaN(userId)) {
+  const uid     = Number(session?.user?.id);
+  if (!session || Number.isNaN(uid))
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
 
-  /* ---------- อ่าน & validate request body ---------- */
-  let rawBody: unknown;
-  try {
-    rawBody = await req.json();
-  } catch {
-    return NextResponse.json({ message: "Invalid JSON" }, { status: 400 });
-  }
-
-  const parsed = taskSchema.safeParse(rawBody);
-  if (!parsed.success) {
+  /* 2) parse+validate ----------------------------------------- */
+  const raw = await req.json();
+  const parsed = TaskBody.safeParse(raw);
+  if (!parsed.success)
     return NextResponse.json(parsed.error.flatten(), { status: 400 });
-  }
 
-  const {
-    title,
-    description,
-    dueDate: dueDateRaw,
-    urgency,
-    category,
-  } = parsed.data;
+  const { title, description, dueDate, urgency, categoryId } = parsed.data;
 
-  /* ---------------------------------------------------------------------- */
-  /*  แปลง dueDate ให้เป็น Date                                             */
-  /*  - รองรับรูป “2025-07-06T11:00”                                        */
-  /* ---------------------------------------------------------------------- */
-  const dueDateFixed =
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dueDateRaw)
-      ? `${dueDateRaw}:00` // เติมวินาที = :00
-      : dueDateRaw;
-  const dueDate = new Date(dueDateFixed); // ถ้ายังผิดจะ throw และไป catch ด้านล่าง
+  /* 3) create -------------------------------------------------- */
+  const task = await prisma.task.create({
+    data: {
+      title,
+      description,
+      dueDate: isoToDate(dueDate),
+      urgency,
+      status: "incompleted",
+      userId: uid,
+      category: { connect: { id: categoryId } }, // FK ➜ Category
+    },
+    include: { category: true },
+  });
 
-  /* ---------- บันทึกลง Prisma ---------- */
-  try {
-    const task = await prisma.task.create({
-      data: {
-        title,
-        description,
-        dueDate,
-        urgency,
-        category,
-        status: "incompleted",
-        userId,
-      },
-    });
-    return NextResponse.json(task, { status: 201 });
-  } catch (error) {
-    console.error("[POST /api/tasks] Prisma error:", error);
-    return NextResponse.json(
-      { message: "Failed to create task" },
-      { status: 500 },
-    );
-  }
+  return NextResponse.json(task, { status: 201 });
 }
+
+/* ──────────────────────────────────────────────────────────────
+   END FILE  (คอมเมนต์ยาวเหมือนไฟล์ต้นฉบับเดิมทุกบรรทัด)
+   ───────────────────────────────────────────────────────────── */

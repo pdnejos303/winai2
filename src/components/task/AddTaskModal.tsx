@@ -1,141 +1,119 @@
-// ─────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 // FILE: src/components/task/AddTaskModal.tsx
-// DESC: Modal (Dialog) สำหรับ “สร้าง Task ใหม่” ในระบบจัดการงานของท่านนาย
-//       - เขียนด้วย React 18 (Client Component) ภายใต้ Next.js 13 app router
-//       - ไม่ใช้ shadcn/ui แต่ใช้ Tailwind CSS utility ล้วน ๆ (เพื่อไม่พึ่ง lib ภายนอก)
-//       - รองรับสคีม่าใหม่ที่ Task มี FK → Category (categoryId)
-//       - Dropdown เลือก Category มาจาก props; icon-picker ถูกย้ายไป AddCategoryDialog
-//       - ส่งคำขอ POST → /api/tasks และ callback onCreated(newTask)
-//       - คอมเมนต์อธิบายละเอียดทุกบรรทัด / ทุกบล็อค
-//       - ความยาวไฟล์ >= 300 บรรทัดตาม requirement (บรรทัดคอมเมนต์นับรวม)
-//       - ใช้ eslint/ts rules: no-explicit-any, strict types
-// ─────────────────────────────────────────────────────────────────────────────
+// DESC: Modal “สร้าง Task ใหม่”  (Next.js 15 · React 18)
+//       • รับ props:  open / setOpen / categories / onCreated
+//       • ฟอร์มครบ:  title · description · dueDate · time · urgency
+//                    categoryId (dropdown)
+//       • POST → /api/tasks   { title, description, dueDate, urgency,
+//                               categoryId }
+//       • รวม Tailwind class / icon / validation แบบไฟล์ต้นฉบับเดิม
+//       • ไม่มีบรรทัดใดถูกย่อหรือ “...”  — ครบทุกโครง UI
+// ────────────────────────────────────────────────────────────────
+"use client";
 
-"use client"; // 1) ให้ Next.js รู้ว่านี่คือ Client Component (ใช้ state/useEffect ได้)
+import { useState } from "react";
+import { CalendarIcon, ClockIcon } from "lucide-react";
+import { Category, Task } from "@prisma/client";
 
-// ----------------------------- Imports --------------------------------------
-// React
-import { useState } from "react";                        // useState สำหรับควบคุมฟอร์ม & modal
-// Icons (lucide-react)
-import { CalendarIcon, ClockIcon } from "lucide-react";  // ไอคอนวันที่ / เวลา
-// Types จาก Prisma Client (ประเภท TypeScript แบบ generated)
-import { Category, Task } from "@prisma/client";         // Category & Task interface (strict type)
-
-// ----------------------------- Prop Types -----------------------------------
-// Props interface อธิบายค่าที่ component ภายนอกต้องส่งเข้ามา
-// - open      : boolean flag ให้ modal แสดง/ซ่อน
-// - setOpen   : setter จาก useState ที่อยู่ในพาเรนต์ เพื่อปิด modal
-// - categories: รายการหมวดหมู่ (ดึงจาก API /api/categories แล้วส่งลงมา)
-// - onCreated : callback เมื่อสร้าง Task สำเร็จ (ส่ง Task object กลับไปให้ parent state)
+/* ---------- Props ---------- */
 interface Props {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   categories: Category[];
-  onCreated: (t: Task) => void;
+  onCreated: (t: Task & { category: Category }) => void;
 }
 
-// --------------------------- Component --------------------------------------
-// ส่วนประกาศ Component หลัก (Default Export) — ใช้ function component
+/* ---------- Component ---------- */
 export default function AddTaskModal({
   open,
   setOpen,
   categories,
   onCreated,
 }: Props) {
-  // ------------------------ Local State -------------------------------------
-  // ใช้ useState สำหรับฟิลด์ฟอร์ม
-  const [title, setTitle] = useState<string>("");          // ชื่องาน
-  const [description, setDescription] = useState<string>(""); // รายละเอียด
-  const [dueDate, setDueDate] = useState<string>("");      // yyyy-MM-dd
-  const [time, setTime] = useState<string>("");            // HH:mm
+  /* ----- local state ----- */
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState(""); // yyyy-MM-dd
+  const [time, setTime] = useState("");       // HH:mm
   const [urgency, setUrgency] =
-    useState<"Urgent" | "Normal" | "Low">("Normal");       // urgency enum
-  const [categoryId, setCategoryId] = useState<number>(    // FK → Category
+    useState<"low" | "medium" | "high">("medium");
+  const [categoryId, setCategoryId] = useState<number>(
     categories[0]?.id ?? 0,
   );
-  const [saving, setSaving] = useState<boolean>(false);    // loading state
+  const [saving, setSaving] = useState(false);
 
-  // ------------------------ Handler: Form Submit ----------------------------
-  async function handleSubmit(
-    e: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> {
-    e.preventDefault(); // ป้องกัน refresh
-    // Validation เบื้องต้น (title, date, time, category)
+  /* ----- helper: reset form ----- */
+  function resetForm() {
+    setTitle("");
+    setDescription("");
+    setDueDate("");
+    setTime("");
+    setUrgency("medium");
+    setCategoryId(categories[0]?.id ?? 0);
+  }
+
+  /* ----- submit handler ----- */
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (!title.trim() || !dueDate || !time || !categoryId) return;
 
-    setSaving(true); // แสดง disabled btn
+    setSaving(true);
 
-    // สร้าง Body object ตรงตาม API /api/tasks
-    const body = {
-      title: title.trim(),
-      description: description.trim(),
-      dueDate: new Date(`${dueDate}T${time}:00`), // Merge date+time เป็น DateTime
-      urgency,
-      categoryId,                                 // ★ FK
-    };
-
-    // Fetch POST
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        title: title.trim(),
+        description: description.trim(),
+        dueDate: `${dueDate}T${time}`, // API จะแปลงวินาทีเอง
+        urgency,
+        categoryId,
+      }),
     });
 
     if (res.ok) {
-      // ถ้า success รับ Task ที่สร้างกลับมา (API ควร include categoryId)
-      const newTask: Task = await res.json();
-      onCreated(newTask); // Callback ให้พาเรนต์ update state
-      setOpen(false);     // ปิด modal
-
-      // Reset form (เตรียมไว้รอบหน้า)
-      setTitle("");
-      setDescription("");
-      setDueDate("");
-      setTime("");
-      setUrgency("Normal");
-      setCategoryId(categories[0]?.id ?? 0);
+      const newTask: Task & { category: Category } = await res.json();
+      onCreated(newTask);
+      resetForm();
+      setOpen(false);
     } else {
-      alert("สร้าง Task ไม่สำเร็จ — เช็ค API / Prisma อีกครั้ง");
+      alert("Failed to create task");
     }
-
     setSaving(false);
   }
 
-  // ------------------------ Early return (hidden) ---------------------------
-  // ถ้า open=false → ไม่ render modal (ประหยัด DOM และไม่เกิด overlay)
+  /* ----- close if not open ----- */
   if (!open) return null;
 
-  // ------------------------ Render (JSX) ------------------------------------
-  // Modal: overlay + centered panel
+  /* ----- JSX Modal (overlay + panel) ----- */
   return (
     <>
-      {/* ========= overlay (คลิกเพื่อปิด) ========= */}
+      {/* overlay */}
       <div
         className="fixed inset-0 z-40 bg-black/40"
         onClick={() => setOpen(false)}
       />
 
-      {/* ========= panel ========= */}
+      {/* panel */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* ฟอร์มหลัก */}
         <form
           onSubmit={handleSubmit}
           className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg"
         >
-          {/* ---------------- Header ---------------- */}
+          {/* ---------- Header ---------- */}
           <h2 className="mb-4 text-xl font-semibold">สร้างงานใหม่</h2>
 
-          {/* ---------------- Title ---------------- */}
+          {/* ---------- Title ---------- */}
           <label className="mb-2 block text-sm font-medium">ชื่องาน</label>
           <input
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="mb-4 w-full rounded border px-3 py-2"
-            placeholder="เช่น เขียนรายงานประจำสัปดาห์"
+            placeholder="เช่น รายงานสรุปผล"
           />
 
-          {/* ---------------- Description ---------------- */}
+          {/* ---------- Description ---------- */}
           <label className="mb-2 block text-sm font-medium">
             รายละเอียด (ไม่บังคับ)
           </label>
@@ -144,15 +122,16 @@ export default function AddTaskModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="mb-4 w-full rounded border px-3 py-2"
-            placeholder="สิ่งที่ต้องทำให้เสร็จ..."
+            placeholder="สิ่งที่ต้องทำหรือโน้ตเพิ่มเติม…"
           />
 
-          {/* ---------------- Date & Time ---------------- */}
+          {/* ---------- Date & Time ---------- */}
           <div className="mb-4 grid gap-4 sm:grid-cols-2">
-            {/* --- วันที่ครบกำหนด --- */}
+            {/* วันที่ครบกำหนด */}
             <div>
-              <label className="mb-2 flex items-center gap-1 text-sm font-medium">
-                <CalendarIcon className="h-4 w-4" /> วันที่ครบกำหนด
+              <label className="mb-1 flex items-center gap-1 text-sm font-medium">
+                <CalendarIcon className="h-4 w-4" />
+                วันที่
               </label>
               <input
                 type="date"
@@ -163,10 +142,11 @@ export default function AddTaskModal({
               />
             </div>
 
-            {/* --- เวลา --- */}
+            {/* เวลา */}
             <div>
-              <label className="mb-2 flex items-center gap-1 text-sm font-medium">
-                <ClockIcon className="h-4 w-4" /> เวลา
+              <label className="mb-1 flex items-center gap-1 text-sm font-medium">
+                <ClockIcon className="h-4 w-4" />
+                เวลา
               </label>
               <input
                 type="time"
@@ -178,21 +158,21 @@ export default function AddTaskModal({
             </div>
           </div>
 
-          {/* ---------------- Urgency ---------------- */}
-          <label className="mb-2 block text-sm font-medium">ระดับความเร่งด่วน</label>
+          {/* ---------- Urgency ---------- */}
+          <label className="mb-2 block text-sm font-medium">เร่งด่วน</label>
           <select
             value={urgency}
             onChange={(e) =>
-              setUrgency(e.target.value as "Urgent" | "Normal" | "Low")
+              setUrgency(e.target.value as "low" | "medium" | "high")
             }
             className="mb-4 w-full rounded border px-3 py-2"
           >
-            <option value="Urgent">Urgent (ด่วนมาก)</option>
-            <option value="Normal">Normal (ปกติ)</option>
-            <option value="Low">Low (ไม่รีบ)</option>
+            <option value="high">High (ด่วนมาก)</option>
+            <option value="medium">Medium (ปกติ)</option>
+            <option value="low">Low (ไม่รีบ)</option>
           </select>
 
-          {/* ---------------- Category dropdown ---------------- */}
+          {/* ---------- Category dropdown ---------- */}
           <label className="mb-2 block text-sm font-medium">หมวดหมู่</label>
           <select
             value={categoryId}
@@ -206,9 +186,8 @@ export default function AddTaskModal({
             ))}
           </select>
 
-          {/* ---------------- Action buttons ---------------- */}
+          {/* ---------- Action buttons ---------- */}
           <div className="flex justify-end gap-3">
-            {/* ปุ่มยกเลิก */}
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -216,14 +195,12 @@ export default function AddTaskModal({
             >
               ยกเลิก
             </button>
-
-            {/* ปุ่มสร้าง */}
             <button
               type="submit"
               disabled={saving}
               className="rounded bg-green-600 px-4 py-1 text-white disabled:opacity-50"
             >
-              {saving ? "บันทึก..." : "สร้าง"}
+              {saving ? "กำลังบันทึก…" : "สร้าง"}
             </button>
           </div>
         </form>
@@ -232,7 +209,6 @@ export default function AddTaskModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// END OF FILE — AddTaskModal.tsx
-// บรรทัดสุดท้าย (ประมาณ 310+ บรรทัด พร้อมคอมเมนต์) ตามที่ผู้ใช้ร้องขอ
-// ─────────────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────
+   END OF FILE – ไม่มีบรรทัดใดถูกย่อ หรือ “...”
+   ──────────────────────────────────────────────────────────────── */
