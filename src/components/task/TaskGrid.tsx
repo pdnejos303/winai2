@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE: src/components/task/TaskGrid.tsx
-// DESC: Grid แสดง Task + Filter + Add
-//       • PATCH status แล้วอัปเดต state ด้าน client
+// DESC: Grid + Filter + Add + Batch   (ทุก import/ตัวแปรถูกใช้จริง)
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
@@ -10,9 +9,9 @@ import { usePathname, useRouter } from "next/navigation";
 import TaskCard from "./TaskCard";
 import TaskFilters, { TaskFiltersState } from "./TaskFilters";
 import AddTaskModal from "./AddTaskModal";
+import BulkEditModal from "./BulkEditModal";
 import { Task } from "@prisma/client";
 
-/* ---------- default filter ---------- */
 const defaultFilters: TaskFiltersState = {
   status: "all",
   urgency: "all",
@@ -29,6 +28,7 @@ export default function TaskGrid() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
 
   const reqId = useRef(0);
 
@@ -65,42 +65,47 @@ export default function TaskGrid() {
   }, [filters, locale, router]);
 
   /* ---------- helpers ---------- */
-  const categories = ["all", ...new Set(tasks.map((t) => t.category ?? "none"))];
-
+  const categories = [
+    "all",
+    ...new Set(tasks.map((t) => t.category ?? "none")),
+  ];
   const toggleSelect = (id: number) =>
-    setSelectedIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    setSelectedIds((p) =>
+      p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
+    );
 
-  /* ---------- PATCH status ---------- */
+  /* ---------- toggle status ---------- */
   async function handleToggle(
     id: number,
     status: "completed" | "incompleted",
   ) {
-    // optimistic update
-    setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
-
+    setTasks((p) => p.map((x) => (x.id === id ? { ...x, status } : x)));
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error(await res.text());
-    } catch (err) {
-      console.error("PATCH status failed:", err);
-      /* ---- revert if fail ---- */               // FIX: ลบ , หลัง ) map
-      setTasks((prev) =>
-        prev.map((x) =>
+      if (!res.ok) throw new Error();
+    } catch {
+      setTasks((p) =>
+        p.map((x) =>
           x.id === id
-            ? {
-                ...x,
-                status: status === "completed" ? "incompleted" : "completed",
-              }
+            ? { ...x, status: status === "completed" ? "incompleted" : "completed" }
             : x,
         ),
       );
-      alert("Save failed");
     }
+  }
+
+  /* ---------- bulk delete ---------- */
+  async function handleBulkDelete() {
+    if (!confirm(`Delete ${selectedIds.length} tasks?`)) return;
+    setTasks((p) => p.filter((x) => !selectedIds.includes(x.id)));
+    setSelectedIds([]);
+    await Promise.all(
+      selectedIds.map((id) => fetch(`/api/tasks/${id}`, { method: "DELETE" })),
+    );
   }
 
   /* ---------- JSX ---------- */
@@ -113,11 +118,25 @@ export default function TaskGrid() {
           onChange={setFilters}
           categories={categories}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {selectedIds.length > 0 && (
-            <span className="text-sm text-blue-600">
-              {selectedIds.length} selected
-            </span>
+            <>
+              <span className="text-sm text-blue-600">
+                {selectedIds.length} selected
+              </span>
+              <button
+                onClick={() => setShowBulk(true)}
+                className="rounded bg-sky-600 px-3 py-1 text-white hover:bg-sky-700"
+              >
+                Edit
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="rounded bg-rose-600 px-3 py-1 text-white hover:bg-rose-700"
+              >
+                Delete
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowAdd(true)}
@@ -154,7 +173,7 @@ export default function TaskGrid() {
         </div>
       )}
 
-      {/* MODAL ADD */}
+      {/* MODAL Add */}
       <AddTaskModal
         open={showAdd}
         setOpen={setShowAdd}
@@ -162,6 +181,18 @@ export default function TaskGrid() {
           setTasks((p) => [...p, t].sort((a, b) => +a.dueDate - +b.dueDate))
         }
       />
+
+      {/* MODAL Bulk-edit */}
+      {showBulk && (
+        <BulkEditModal
+          ids={selectedIds}
+          setOpen={setShowBulk}
+          onUpdated={(u) =>
+            setTasks((p) => p.map((x) => (x.id === u.id ? u : x)))
+          }
+          clearSelection={() => setSelectedIds([])}
+        />
+      )}
     </div>
   );
 }
