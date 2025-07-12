@@ -1,16 +1,18 @@
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // FILE: src/components/task/EditTaskModal.tsx
-// DESC: Modal แก้ไข Task  (PATCH /api/tasks/:id)
-// FIX : fmtInput รองรับ Date | string  → ไม่มี TS2345
-// ─────────────────────────────────────────────────────────────────────────────
+// DESC: Modal แก้ไข Task — urgency เป็น number (0=none 1=low 2=med 3=high)
+// ─────────────────────────────────────────────────────────────
 "use client";
 
 import { useState } from "react";
 import { Task } from "@prisma/client";
 
-/* ---------- helper ---------- */
-// CHANGE: now accepts Date | string
+/* helper: แปลง Date เป็นค่า input[type=datetime-local] */
 const fmtInput = (d: Date | string) => new Date(d).toISOString().slice(0, 16);
+
+/* enum urgency ในฝั่ง UI */
+type Urgency = 0 | 1 | 2 | 3;
+const label: Record<Urgency, string> = { 0: "None", 1: "Low", 2: "Medium", 3: "High" };
 
 interface Props {
   task: Task;
@@ -21,26 +23,23 @@ interface Props {
 export default function EditTaskModal({ task, setOpen, onUpdated }: Props) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
-  const [dueDate, setDueDate] = useState(fmtInput(task.dueDate));   // ✅ ok
-  const [urgency, setUrgency] = useState(
-    task.urgency as "low" | "medium" | "high",
-  );
+  const [dueDate, setDueDate] = useState(fmtInput(task.dueDate));
+  const [urgency, setUrgency] = useState<Urgency>(task.urgency as Urgency); // ⭐️ number
   const [category, setCategory] = useState(task.category ?? "General");
   const [saving, setSaving] = useState(false);
 
-  /* ---------- save ---------- */
+  /* save (PATCH) */
   async function handleSave() {
     setSaving(true);
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           description,
           dueDate: new Date(dueDate).toISOString(),
-          urgency,
+          urgency,                 // → number
           category,
         }),
       });
@@ -55,7 +54,7 @@ export default function EditTaskModal({ task, setOpen, onUpdated }: Props) {
     }
   }
 
-  /* ---------- UI ---------- */
+  /* UI */
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
@@ -84,13 +83,13 @@ export default function EditTaskModal({ task, setOpen, onUpdated }: Props) {
         <select
           className="mb-3 w-full rounded border px-3 py-2"
           value={urgency}
-          onChange={(e) =>
-            setUrgency(e.target.value as "low" | "medium" | "high")
-          }
+          onChange={(e) => setUrgency(+e.target.value as Urgency)}
         >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
+          {([0, 1, 2, 3] as const).map((v) => (
+            <option key={v} value={v}>
+              {label[v]}
+            </option>
+          ))}
         </select>
 
         <input

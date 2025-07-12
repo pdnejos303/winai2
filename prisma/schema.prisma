@@ -60,7 +60,7 @@ model Task {
   title       String                                 // ชื่อ task
   description String                                 // รายละเอียด
   dueDate     DateTime                               // วันครบกำหนด
-  urgency     String                                 // Urgent, Normal, Low
+  urgency     Int       @default(0)    // 0-none 1-low 2-medium 3-high
   category    String                                 // Work, Health, Learning, Relaxing
   status      String    @default("incompleted")      // Completed, Incompleted
   createdAt   DateTime  @default(now())              // วันสร้าง

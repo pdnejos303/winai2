@@ -1,17 +1,17 @@
-/* Path: src/components/task/TaskFilters.tsx
-   ---------------------------------------------------------------------------
-   ✔ ทำให้ dropdown มี "all" เสมอ (ส่งมาจาก TaskGrid แล้ว)
+/* ---------------------------------------------------------------------------
+   FILE: src/components/task/TaskFilters.tsx
+   DESC: Filter panel  –  urgency ใช้ตัวเลข 0-3 (0 none, 1 low, 2 medium, 3 high)
    ------------------------------------------------------------------------- */
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
 import clsx from "clsx";
 
-/* kind of state */
+/* ── filter state ───────────────────────────────────── */
 export type TaskFiltersState = {
   status: "all" | "completed" | "incompleted";
-  urgency: "all" | "high" | "medium" | "low";
-  category: string;
+  urgency: "all" | 0 | 1 | 2 | 3;          // ⭐️ numeric
+  category: string;                        // "all" หรือชื่อหมวด
 };
 
 type Props = {
@@ -26,9 +26,15 @@ export default function TaskFilters({ value, onChange, categories }: Props) {
     v: TaskFiltersState[K],
   ) => onChange((p) => ({ ...p, [key]: v }));
 
+  /* helper แปลง label */
+  const urgLabel = (n: 0 | 1 | 2 | 3 | "all") =>
+    n === "all"
+      ? "ALL"
+      : (["NON", "Low", "Medium", "Hign"] as const)[n]; // แสดง L M H (Low/Med/High)
+
   return (
     <div className="flex flex-wrap gap-4 pb-6">
-      {/* status */}
+      {/* ▼ status */}
       {(["all", "incompleted", "completed"] as const).map((k) => (
         <button
           key={k}
@@ -44,10 +50,10 @@ export default function TaskFilters({ value, onChange, categories }: Props) {
         </button>
       ))}
 
-      {/* urgency */}
-      {(["all", "high", "medium", "low"] as const).map((k) => (
+      {/* ▼ urgency (numeric) */}
+      {(["all", 3, 2, 1, 0] as const).map((k) => (
         <button
-          key={k}
+          key={String(k)}
           onClick={() => update("urgency", k)}
           className={clsx(
             "px-3 py-1 rounded-md text-sm border font-medium transition",
@@ -56,11 +62,11 @@ export default function TaskFilters({ value, onChange, categories }: Props) {
               : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100",
           )}
         >
-          {k === "all" ? "ALL" : k[0].toUpperCase() + k.slice(1)}
+          {urgLabel(k)}
         </button>
       ))}
 
-      {/* category */}
+      {/* ▼ category */}
       <select
         value={value.category}
         onChange={(e) => update("category", e.target.value)}

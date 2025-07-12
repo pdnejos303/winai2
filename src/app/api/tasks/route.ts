@@ -29,7 +29,7 @@ const taskSchema = z.object({
     .refine((d) => !Number.isNaN(Date.parse(d)), {
       message: "dueDate must be a valid ISO-8601 string",
     }),
-  urgency: z.enum(["low", "medium", "high"]),
+  urgency: z.number().int().min(0).max(3).default(0),  // ✔ เปลี่ยนแบบถูก
   category: z.string().min(1),
 });
 
@@ -53,8 +53,11 @@ export async function GET(req: NextRequest) {
   const status = sp.get("status");
   if (status === "completed" || status === "incompleted") where.status = status;
 
-  const urgency = sp.get("urgency");
-  if (urgency && urgency !== "all") where.urgency = urgency;
+const urgStr = sp.get("urgency");
+if (urgStr && urgStr !== "all") {
+  const urgNum = Number(urgStr);
+  if ([0, 1, 2, 3].includes(urgNum)) where.urgency = urgNum;
+}
 
   const category = sp.get("category");
   if (category && category !== "all") where.category = category;

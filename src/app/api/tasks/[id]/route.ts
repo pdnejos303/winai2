@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import prisma from "@/lib/prisma";
+import { z } from "zod"; // ⭐️ เพิ่ม zod สำหรับ validate body
 
 /* -------------------------------------------------------------------------- */
 /*  helper: รับ userId (Int) ถ้าไม่ผ่านให้คืน null                           */
@@ -20,6 +21,18 @@ async function currentUserId() {
   const uid = Number(s?.user?.id);
   return !s || Number.isNaN(uid) ? null : uid;
 }
+
+/* -------------------------------------------------------------------------- */
+/*  schema PATCH – รับเฉพาะฟิลด์ที่อนุญาต & urgency เป็นตัวเลข 0-3           */
+/* -------------------------------------------------------------------------- */
+const patchSchema = z.object({
+  title:       z.string().min(1).optional(),
+  description: z.string().optional(),
+  dueDate:     z.coerce.date().optional(),        // รับ ISO-string → Date
+  urgency:     z.number().int().min(0).max(3).optional(), // 0-none 1-low 2-med 3-high
+  category:    z.string().optional(),
+  status:      z.enum(["completed", "incompleted"]).optional(),
+});
 
 /* -------------------------------------------------------------------------- */
 /*  GET /api/tasks/[id] – อ่าน Task เดียว                                     */
@@ -54,26 +67,18 @@ export async function PATCH(
   const { id: idStr } = await context.params; // ← ต้อง await
   const id = Number(idStr);
 
-  const body = (await req.json()) as Partial<{
-    title: string;
-    description: string;
-    dueDate: string;
-    urgency: string;
-    category: string;
-    status: "completed" | "incompleted";
-  }>;
-
-  if (
-    body.status &&
-    body.status !== "completed" &&
-    body.status !== "incompleted"
-  ) {
-    return NextResponse.json({ message: "Bad status" }, { status: 400 });
+  /* ---------- validate body ---------- */
+  const raw = await req.json();
+  const parsed = patchSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(parsed.error.flatten(), { status: 400 });
   }
+  const data = parsed.data;
 
+  /* ---------- บันทึก ---------- */
   const task = await prisma.task.update({
     where: { id, userId: uid },
-    data:  body,
+    data,
   });
 
   return NextResponse.json(task);
