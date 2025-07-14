@@ -41,35 +41,42 @@ async function currentUserId(): Promise<number | null> {
 }
 
 /* -------------------------------------------------------------------------- */
-/* GET /api/tasks                                                             */
+/*  GET /api/tasks                                                             */
 /* -------------------------------------------------------------------------- */
 export async function GET(req: NextRequest) {
   const uid = await currentUserId();
   if (!uid)
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-  /* ---------- build where ---------- */
-  const sp = req.nextUrl.searchParams;
+  const sp   = req.nextUrl.searchParams;
   const where: Prisma.TaskWhereInput = { userId: uid };
 
+  /* status ----------------------------------------------------------------- */
   const status = sp.get("status");
   if (status === "completed" || status === "incompleted") where.status = status;
 
-  const urg = Number(sp.get("urgency"));
-  if ([0, 1, 2, 3].includes(urg)) where.urgency = urg;
+  /* urgency ---------------------------------------------------------------- */
+  const urgStr = sp.get("urgency");                // ✅ FIX : read as string first
+  if (urgStr !== null) {
+    const urg = Number(urgStr);
+    if ([0, 1, 2, 3].includes(urg)) where.urgency = urg;
+  }
 
-  const catId = Number(sp.get("categoryId"));
-  if (!Number.isNaN(catId)) where.categoryId = catId;
+  /* categoryId ------------------------------------------------------------- */
+  const catStr = sp.get("categoryId");             // ✅ FIX : same idea
+  if (catStr !== null) {
+    const id = Number(catStr);
+    if (!Number.isNaN(id)) where.categoryId = id;
+  }
 
-  /* ---------- query ---------- */
   const tasks = await prisma.task.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    include: { category: true },      // ← สำคัญ! ให้ UI ใช้ category.name
+    include: { category: true },
   });
-
   return NextResponse.json(tasks);
 }
+
 
 /* -------------------------------------------------------------------------- */
 /* POST /api/tasks                                                            */
