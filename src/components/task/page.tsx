@@ -1,36 +1,39 @@
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // FILE: src/app/en/app/tasks/page.tsx
-// DESC: หน้า Tasks – มีปุ่มเดียว กดครั้งเดียวเปิดฟอร์ม (ไม่มีปุ่มซ้อนอีก)
-// ─────────────────────────────────────────────────────────────────────────────
-
+// DESC: หน้า Tasks – มีปุ่มเดียวเปิดโมดาลเพิ่มงาน
+// NOTE: AddTaskModal ต้องรับ prop categories (Category[])
+// ─────────────────────────────────────────────────────────────
 "use client";
 
 import { useEffect, useState } from "react";
-import { Task } from "@prisma/client";
+import type { Task, Category } from "@prisma/client";
 import AddTaskModal from "@/components/task/AddTaskModal";
 
-/* -------------------------------------------------------------------------- */
-/* Component                                                                  */
-/* -------------------------------------------------------------------------- */
 export default function TasksPage() {
   /* ---------- state ---------- */
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
 
-  /* ---------- fetch tasks ---------- */
+  /* ---------- fetch helpers ---------- */
   async function fetchTasks() {
-    try {
-      const res = await fetch("/api/tasks", { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
-      const data: Task[] = await res.json();
-      setTasks(data);
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch("/api/tasks", { credentials: "include" });
+    if (!res.ok) throw new Error(await res.text());
+    setTasks(await res.json());
   }
+
+  async function fetchCategories() {
+    const res = await fetch("/api/categories", { credentials: "include" });
+    if (!res.ok) throw new Error(await res.text());
+    setCategories(await res.json());
+  }
+
+  /* ---------- initial load ---------- */
   useEffect(() => {
-    fetchTasks();
+    Promise.all([fetchTasks(), fetchCategories()]).finally(() =>
+      setLoading(false),
+    );
   }, []);
 
   /* ---------- callback เมื่อสร้าง Task ---------- */
@@ -38,12 +41,10 @@ export default function TasksPage() {
     setTasks((prev) => [task, ...prev]);
   };
 
-  /* ---------------------------------------------------------------------- */
-  /* JSX                                                                    */
-  /* ---------------------------------------------------------------------- */
+  /* ---------- JSX ---------- */
   return (
     <div className="px-4 py-6">
-      {/* Top bar – ปุ่มเดียวเรียกโมดาล */}
+      {/* Top bar */}
       <div className="mb-6 flex justify-end">
         <button
           onClick={() => setModalOpen(true)}
@@ -53,7 +54,7 @@ export default function TasksPage() {
         </button>
       </div>
 
-      {/* รายการงานแบบง่าย */}
+      {/* List */}
       {loading ? (
         <p>Loading…</p>
       ) : tasks.length === 0 ? (
@@ -74,10 +75,11 @@ export default function TasksPage() {
         </ul>
       )}
 
-      {/* Modal controlled */}
+      {/* Modal */}
       <AddTaskModal
         open={modalOpen}
         setOpen={setModalOpen}
+        categories={categories}
         onCreated={handleCreated}
       />
     </div>

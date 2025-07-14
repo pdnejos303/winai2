@@ -16,7 +16,7 @@ import { z } from "zod"; // ⭐️ เพิ่ม zod สำหรับ valida
 /* -------------------------------------------------------------------------- */
 /*  helper: รับ userId (Int) ถ้าไม่ผ่านให้คืน null                           */
 /* -------------------------------------------------------------------------- */
-async function currentUserId() {
+async function currentUserId(): Promise<number | null> {
   const s   = await getServerSession(authOptions);
   const uid = Number(s?.user?.id);
   return !s || Number.isNaN(uid) ? null : uid;
@@ -28,9 +28,14 @@ async function currentUserId() {
 const patchSchema = z.object({
   title:       z.string().min(1).optional(),
   description: z.string().optional(),
-  dueDate:     z.coerce.date().optional(),        // รับ ISO-string → Date
+  dueDate:     z
+    .string()
+    .refine((d) => !Number.isNaN(Date.parse(d)), {
+      message: "dueDate must be ISO-8601",
+    })
+    .optional(),
   urgency:     z.number().int().min(0).max(3).optional(), // 0-none 1-low 2-med 3-high
-  category:    z.string().optional(),
+  categoryId:  z.number().int().nullable().optional(),    // ← เปลี่ยนเป็น categoryId
   status:      z.enum(["completed", "incompleted"]).optional(),
 });
 
@@ -44,10 +49,13 @@ export async function GET(
   const uid = await currentUserId();
   if (!uid) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-  const { id: idStr } = await context.params; // ← ต้อง await
+  const { id: idStr } = await context.params; // ← ต้อง await ตาม Next 15
   const id = Number(idStr);
 
-  const task = await prisma.task.findFirst({ where: { id, userId: uid } });
+  const task = await prisma.task.findFirst({
+    where: { id, userId: uid },
+    include: { category: true },             // include relation
+  });
 
   return task
     ? NextResponse.json(task)
@@ -64,7 +72,7 @@ export async function PATCH(
   const uid = await currentUserId();
   if (!uid) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-  const { id: idStr } = await context.params; // ← ต้อง await
+  const { id: idStr } = await context.params;
   const id = Number(idStr);
 
   /* ---------- validate body ---------- */
@@ -73,12 +81,18 @@ export async function PATCH(
   if (!parsed.success) {
     return NextResponse.json(parsed.error.flatten(), { status: 400 });
   }
-  const data = parsed.data;
+
+  /* ---------- แปลง dueDate เป็น Date ถ้ามี ---------- */
+  const data = { ...parsed.data } as Record<string, unknown>;
+  if (data.dueDate) {
+    data.dueDate = new Date(data.dueDate as string);
+  }
 
   /* ---------- บันทึก ---------- */
   const task = await prisma.task.update({
     where: { id, userId: uid },
     data,
+    include: { category: true },
   });
 
   return NextResponse.json(task);
@@ -94,7 +108,7 @@ export async function DELETE(
   const uid = await currentUserId();
   if (!uid) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-  const { id: idStr } = await context.params; // ← ต้อง await
+  const { id: idStr } = await context.params;
   const id = Number(idStr);
 
   await prisma.task.delete({ where: { id, userId: uid } });

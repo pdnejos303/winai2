@@ -7,31 +7,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            Int       @id @default(autoincrement())   
-  email         String    @unique
-  name          String?
-  image         String?                                 
-  emailVerified DateTime?                               
-  passwordHash  String?                                 
+/* ─────────────────────────────  USER & AUTH  ───────────────────────────── */
 
-  Accounts      Account[]
-  Sessions      Session[]
-  Tasks         Task[]  // 🔥 เชื่อม Task ทั้งหมดของ user
+model User {
+  id            Int        @id @default(autoincrement())
+  email         String     @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  passwordHash  String?
+
+  // relations
+  Accounts   Account[]
+  Sessions   Session[]
+  Tasks      Task[]
+  Categories Category[]
 }
 
 model Account {
-  id                 Int     @id @default(autoincrement())
-  userId             Int                                      
-  type               String
-  provider           String
-  providerAccountId  String
-  access_token       String? @db.Text
-  expires_at         Int?
-  scope              String?
-  id_token           String? @db.Text
-  token_type         String?
-  refresh_token      String? @db.Text
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  access_token      String? @db.Text
+  expires_at        Int?
+  scope             String?
+  id_token          String? @db.Text
+  token_type        String?
+  refresh_token     String? @db.Text
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -41,7 +45,7 @@ model Account {
 model Session {
   id           Int      @id @default(autoincrement())
   sessionToken String   @unique
-  userId       Int                                      
+  userId       Int
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -55,17 +59,36 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Task {
-  id          Int      @id @default(autoincrement())  // PK
-  title       String                                 // ชื่อ task
-  description String                                 // รายละเอียด
-  dueDate     DateTime                               // วันครบกำหนด
-  urgency     Int       @default(0)    // 0-none 1-low 2-medium 3-high
-  category    String                                 // Work, Health, Learning, Relaxing
-  status      String    @default("incompleted")      // Completed, Incompleted
-  createdAt   DateTime  @default(now())              // วันสร้าง
-  updatedAt   DateTime  @updatedAt                   // วันแก้ไขล่าสุด
+/* ─────────────────────────────  TASK & CATEGORY  ───────────────────────── */
 
-  userId      Int                                     // FK
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Task {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String
+  dueDate     DateTime
+  urgency     Int       @default(0)           // 0-none • 1-low • 2-medium • 3-high
+  status      String    @default("incompleted")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  /* relations */
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
+}
+
+model Category {
+  id     Int    @id @default(autoincrement())
+  name   String                         // ชื่อหมวด
+  icon   String                         // ex: "lucide:book", "heroicons:heart"
+  color  String                         // HEX / HSL (#FFAA00)
+
+  /* relations */
+  userId Int
+  user   User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks  Task[]
+
+  @@unique([userId, name])              // ไม่ให้ชื่อหมวดซ้ำภายใต้ user เดียวกัน
 }

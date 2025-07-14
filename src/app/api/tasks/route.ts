@@ -26,53 +26,53 @@ const taskSchema = z.object({
   description: z.string().default(""),
   dueDate: z
     .string()
-    .refine((d) => !Number.isNaN(Date.parse(d)), {
-      message: "dueDate must be a valid ISO-8601 string",
-    }),
-  urgency: z.number().int().min(0).max(3).default(0),  // ✔ เปลี่ยนแบบถูก
-  category: z.string().min(1),
+    .refine((d) => !Number.isNaN(Date.parse(d)), { message: "dueDate must be ISO-8601" }),
+  urgency: z.number().int().min(0).max(3).default(0),
+  categoryId: z.number().int().optional().nullable(), // FK (nullable)
 });
 
 /* -------------------------------------------------------------------------- */
-/*  GET /api/tasks                                                            */
+/* helper – รับ userId (Int) ถ้าไม่ผ่านให้ null                                */
+/* -------------------------------------------------------------------------- */
+async function currentUserId(): Promise<number | null> {
+  const s = await getServerSession(authOptions);
+  const uid = Number(s?.user?.id);
+  return !s || Number.isNaN(uid) ? null : uid;
+}
+
+/* -------------------------------------------------------------------------- */
+/* GET /api/tasks                                                             */
 /* -------------------------------------------------------------------------- */
 export async function GET(req: NextRequest) {
-  /* ---------- ตรวจ session ---------- */
-  const session = await getServerSession(authOptions);
-  const rawId = session?.user?.id;
-  const userId = Number(rawId);
-
-  if (!session || !rawId || Number.isNaN(userId)) {
+  const uid = await currentUserId();
+  if (!uid)
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
 
-  /* ---------- สร้าง where จาก query string ---------- */
+  /* ---------- build where ---------- */
   const sp = req.nextUrl.searchParams;
-  const where: Prisma.TaskWhereInput = { userId };
+  const where: Prisma.TaskWhereInput = { userId: uid };
 
   const status = sp.get("status");
   if (status === "completed" || status === "incompleted") where.status = status;
 
-const urgStr = sp.get("urgency");
-if (urgStr && urgStr !== "all") {
-  const urgNum = Number(urgStr);
-  if ([0, 1, 2, 3].includes(urgNum)) where.urgency = urgNum;
-}
+  const urg = Number(sp.get("urgency"));
+  if ([0, 1, 2, 3].includes(urg)) where.urgency = urg;
 
-  const category = sp.get("category");
-  if (category && category !== "all") where.category = category;
+  const catId = Number(sp.get("categoryId"));
+  if (!Number.isNaN(catId)) where.categoryId = catId;
 
-  /* ---------- ดึงข้อมูลจาก Prisma ---------- */
+  /* ---------- query ---------- */
   const tasks = await prisma.task.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    include: { category: true },      // ← สำคัญ! ให้ UI ใช้ category.name
   });
 
-  return NextResponse.json(tasks, { status: 200 });
+  return NextResponse.json(tasks);
 }
 
 /* -------------------------------------------------------------------------- */
-/*  POST /api/tasks                                                           */
+/* POST /api/tasks                                                            */
 /* -------------------------------------------------------------------------- */
 export async function POST(req: NextRequest) {
   /* ---------- ตรวจ session ---------- */
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  /* ---------- อ่าน & validate request body ---------- */
+  /* ---------- อ่าน & validate body ---------- */
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -92,27 +92,26 @@ export async function POST(req: NextRequest) {
   }
 
   const parsed = taskSchema.safeParse(rawBody);
-  if (!parsed.success) {
+  if (!parsed.success)
     return NextResponse.json(parsed.error.flatten(), { status: 400 });
-  }
 
   const {
     title,
     description,
     dueDate: dueDateRaw,
     urgency,
-    category,
+    categoryId,
   } = parsed.data;
 
   /* ---------------------------------------------------------------------- */
-  /*  แปลง dueDate ให้เป็น Date                                             */
-  /*  - รองรับรูป “2025-07-06T11:00”                                        */
+  /*  แปลง dueDate string → Date                                            */
+  /*  - รองรับรูป “2025-07-06T11:00” (ไม่มีวินาที)                         */
   /* ---------------------------------------------------------------------- */
   const dueDateFixed =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dueDateRaw)
-      ? `${dueDateRaw}:00` // เติมวินาที = :00
+      ? `${dueDateRaw}:00`
       : dueDateRaw;
-  const dueDate = new Date(dueDateFixed); // ถ้ายังผิดจะ throw และไป catch ด้านล่าง
+  const dueDate = new Date(dueDateFixed);
 
   /* ---------- บันทึกลง Prisma ---------- */
   try {
@@ -122,13 +121,14 @@ export async function POST(req: NextRequest) {
         description,
         dueDate,
         urgency,
-        category,
         status: "incompleted",
         userId,
+        categoryId: categoryId ?? null,
       },
+      include: { category: true },
     });
     return NextResponse.json(task, { status: 201 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[POST /api/tasks] Prisma error:", error);
     return NextResponse.json(
       { message: "Failed to create task" },

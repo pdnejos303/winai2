@@ -1,34 +1,51 @@
 // ─────────────────────────────────────────────────────────────
 // FILE: src/components/task/EditTaskModal.tsx
-// DESC: Modal แก้ไข Task — urgency เป็น number (0=none 1=low 2=med 3=high)
+// DESC: Modal แก้ไข Task — ใช้ categoryId (FK) แทน category string
 // ─────────────────────────────────────────────────────────────
 "use client";
 
 import { useState } from "react";
-import { Task } from "@prisma/client";
+import type { Task, Category } from "@prisma/client";
 
-/* helper: แปลง Date เป็นค่า input[type=datetime-local] */
+/* helper: datetime-local format */
 const fmtInput = (d: Date | string) => new Date(d).toISOString().slice(0, 16);
 
 /* enum urgency ในฝั่ง UI */
 type Urgency = 0 | 1 | 2 | 3;
-const label: Record<Urgency, string> = { 0: "None", 1: "Low", 2: "Medium", 3: "High" };
+const label: Record<Urgency, string> = {
+  0: "None",
+  1: "Low",
+  2: "Medium",
+  3: "High",
+};
+
+/* ---------- props ---------- */
+type TaskWithCat = Task & { category: Category | null };
 
 interface Props {
-  task: Task;
+  task: TaskWithCat;
+  categories: Category[];              // 💡 ส่ง array จาก TaskBoard/TaskGrid
   setOpen: (b: boolean) => void;
-  onUpdated: (t: Task) => void;
+  onUpdated: (t: TaskWithCat) => void;
 }
 
-export default function EditTaskModal({ task, setOpen, onUpdated }: Props) {
+export default function EditTaskModal({
+  task,
+  categories,
+  setOpen,
+  onUpdated,
+}: Props) {
+  /* ---------- state ---------- */
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [dueDate, setDueDate] = useState(fmtInput(task.dueDate));
-  const [urgency, setUrgency] = useState<Urgency>(task.urgency as Urgency); // ⭐️ number
-  const [category, setCategory] = useState(task.category ?? "General");
+  const [urgency, setUrgency] = useState<Urgency>(task.urgency as Urgency);
+  const [categoryId, setCategoryId] = useState<number | "none">(
+    task.categoryId ?? "none",
+  );
   const [saving, setSaving] = useState(false);
 
-  /* save (PATCH) */
+  /* ---------- save ---------- */
   async function handleSave() {
     setSaving(true);
     try {
@@ -39,8 +56,8 @@ export default function EditTaskModal({ task, setOpen, onUpdated }: Props) {
           title,
           description,
           dueDate: new Date(dueDate).toISOString(),
-          urgency,                 // → number
-          category,
+          urgency,
+          categoryId: categoryId === "none" ? null : categoryId,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -54,7 +71,7 @@ export default function EditTaskModal({ task, setOpen, onUpdated }: Props) {
     }
   }
 
-  /* UI */
+  /* ---------- UI ---------- */
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
@@ -92,11 +109,21 @@ export default function EditTaskModal({ task, setOpen, onUpdated }: Props) {
           ))}
         </select>
 
-        <input
+        <label className="mb-1 block text-sm">Category</label>
+        <select
           className="mb-4 w-full rounded border px-3 py-2"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        />
+          value={categoryId ?? "none"}
+          onChange={(e) =>
+            setCategoryId(e.target.value === "none" ? "none" : +e.target.value)
+          }
+        >
+          <option value="none">— None —</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
 
         <div className="flex justify-end gap-3">
           <button

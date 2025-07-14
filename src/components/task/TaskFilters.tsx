@@ -1,84 +1,82 @@
-/* ---------------------------------------------------------------------------
-   FILE: src/components/task/TaskFilters.tsx
-   DESC: Filter panel  –  urgency ใช้ตัวเลข 0-3 (0 none, 1 low, 2 medium, 3 high)
-   ------------------------------------------------------------------------- */
+// ─────────────────────────────────────────────────────────────
+// FILE: src/components/task/TaskFilters.tsx
+// DESC: แถบกรอง Task (urgency + categoryId)  – เวอร์ชัน model ใหม่
+// ─────────────────────────────────────────────────────────────
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
-import clsx from "clsx";
+import { useState } from "react";
+import type { Category } from "@prisma/client";
 
-/* ── filter state ───────────────────────────────────── */
-export type TaskFiltersState = {
-  status: "all" | "completed" | "incompleted";
-  urgency: "all" | 0 | 1 | 2 | 3;          // ⭐️ numeric
-  category: string;                        // "all" หรือชื่อหมวด
+/* ---------- state ที่ส่งออกไปให้ parent ---------- */
+export type FilterState = {
+  status?: "all" | "completed" | "incompleted"; // optional – TaskBoard ใช้เพิ่มเอง
+  urgency: 0 | 1 | 2 | 3 | "all";
+  categoryId: number | "all";
 };
 
-type Props = {
-  value: TaskFiltersState;
-  onChange: Dispatch<SetStateAction<TaskFiltersState>>;
-  categories: string[];
-};
+interface Props {
+  categories: Category[];            // ต้องเป็น Category[] แล้ว
+  onChange: (f: FilterState) => void;
+}
 
-export default function TaskFilters({ value, onChange, categories }: Props) {
-  const update = <K extends keyof TaskFiltersState>(
-    key: K,
-    v: TaskFiltersState[K],
-  ) => onChange((p) => ({ ...p, [key]: v }));
+export default function TaskFilter({ categories, onChange }: Props) {
+  const [state, setState] = useState<FilterState>({
+    urgency: "all",
+    categoryId: "all",
+  });
 
-  /* helper แปลง label */
-  const urgLabel = (n: 0 | 1 | 2 | 3 | "all") =>
-    n === "all"
-      ? "ALL"
-      : (["NON", "Low", "Medium", "Hign"] as const)[n]; // แสดง L M H (Low/Med/High)
+  function set<K extends keyof FilterState>(k: K, v: FilterState[K]) {
+    const next = { ...state, [k]: v };
+    setState(next);
+    onChange(next);
+  }
 
   return (
-    <div className="flex flex-wrap gap-4 pb-6">
-      {/* ▼ status */}
-      {(["all", "incompleted", "completed"] as const).map((k) => (
-        <button
-          key={k}
-          onClick={() => update("status", k)}
-          className={clsx(
-            "px-3 py-1 rounded-md text-sm border font-medium transition",
-            value.status === k
-              ? "bg-brand-green text-white border-brand-green"
-              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100",
-          )}
+    <div className="flex flex-wrap items-end gap-4">
+      {/* urgency */}
+      <div>
+        <label className="block text-sm">Urgency</label>
+        <select
+          className="rounded border px-3 py-1"
+          value={state.urgency}
+          onChange={(e) =>
+            set(
+              "urgency",
+              e.target.value === "all"
+                ? "all"
+                : (Number(e.target.value) as 0 | 1 | 2 | 3),
+            )
+          }
         >
-          {k.toUpperCase()}
-        </button>
-      ))}
+          <option value="all">All</option>
+          <option value={0}>None</option>
+          <option value={1}>Low</option>
+          <option value={2}>Medium</option>
+          <option value={3}>High</option>
+        </select>
+      </div>
 
-      {/* ▼ urgency (numeric) */}
-      {(["all", 3, 2, 1, 0] as const).map((k) => (
-        <button
-          key={String(k)}
-          onClick={() => update("urgency", k)}
-          className={clsx(
-            "px-3 py-1 rounded-md text-sm border font-medium transition",
-            value.urgency === k
-              ? "bg-brand-green text-white border-brand-green"
-              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100",
-          )}
+      {/* categoryId */}
+      <div>
+        <label className="block text-sm">Category</label>
+        <select
+          className="rounded border px-3 py-1"
+          value={state.categoryId}
+          onChange={(e) =>
+            set(
+              "categoryId",
+              e.target.value === "all" ? "all" : Number(e.target.value),
+            )
+          }
         >
-          {urgLabel(k)}
-        </button>
-      ))}
-
-      {/* ▼ category */}
-      <select
-        value={value.category}
-        onChange={(e) => update("category", e.target.value)}
-        className="rounded-md border bg-white px-3 py-1 text-sm text-gray-700
-                   focus:outline-none focus:ring-2 focus:ring-brand-green"
-      >
-        {categories.map((c) => (
-          <option key={c} value={c}>
-            {c === "all" ? "All categories" : c}
-          </option>
-        ))}
-      </select>
+          <option value="all">All</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }

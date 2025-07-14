@@ -1,21 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE: src/components/task/TaskGrid.tsx
-// DESC: Grid + Filter + Add + Batch   (ทุก import/ตัวแปรถูกใช้จริง)
+// DESC: Grid + Filter + Add + Bulk-edit  (รองรับ categoryId model ใหม่)
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import type { Task, Category } from "@prisma/client";
+
 import TaskCard from "./TaskCard";
-import TaskFilters, { TaskFiltersState } from "./TaskFilters";
+import TaskFilter, { FilterState } from "./TaskFilters";
 import AddTaskModal from "./AddTaskModal";
 import BulkEditModal from "./BulkEditModal";
-import { Task } from "@prisma/client";
 
-const defaultFilters: TaskFiltersState = {
+type TaskWithCat = Task & { category: Category | null };
+
+const defaultFilters: FilterState = {
   status: "all",
   urgency: "all",
-  category: "all",
+  categoryId: "all",
 };
 
 export default function TaskGrid() {
@@ -23,8 +26,9 @@ export default function TaskGrid() {
   const locale = pathname.split("/")[1] || "en";
   const router = useRouter();
 
-  const [filters, setFilters] = useState<TaskFiltersState>(defaultFilters);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  /* ---------- state ---------- */
+  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [tasks, setTasks] = useState<TaskWithCat[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -32,6 +36,7 @@ export default function TaskGrid() {
 
   const reqId = useRef(0);
 
+  /* reset filters เมื่อ locale เปลี่ยน */
   useEffect(() => setFilters(defaultFilters), [locale]);
 
   /* ---------- fetch list ---------- */
@@ -42,9 +47,12 @@ export default function TaskGrid() {
     (async () => {
       try {
         const qs = new URLSearchParams();
-        if (filters.status !== "all") qs.append("status", filters.status);
-        if (filters.urgency !== "all") qs.append("urgency", filters.urgency);
-        if (filters.category !== "all") qs.append("category", filters.category);
+        if (filters.status && filters.status !== "all")
+          qs.append("status", filters.status);
+        if (filters.urgency !== "all")
+          qs.append("urgency", String(filters.urgency));
+        if (filters.categoryId !== "all")
+          qs.append("category", String(filters.categoryId));
 
         const res = await fetch("/api/tasks?" + qs.toString(), {
           cache: "no-store",
@@ -54,8 +62,9 @@ export default function TaskGrid() {
           router.replace(`/${locale}/login`);
           return;
         }
-        const data = await res.json();
-        if (id === reqId.current && Array.isArray(data)) setTasks(data);
+
+        const data: TaskWithCat[] = await res.json();
+        if (id === reqId.current) setTasks(data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -65,10 +74,14 @@ export default function TaskGrid() {
   }, [filters, locale, router]);
 
   /* ---------- helpers ---------- */
-  const categories = [
-    "all",
-    ...new Set(tasks.map((t) => t.category ?? "none")),
-  ];
+  const categories = Array.from(
+    new Map(
+      tasks
+        .filter((t) => t.category)
+        .map((t) => [t.category!.id, t.category!]),
+    ).values(),
+  );
+
   const toggleSelect = (id: number) =>
     setSelectedIds((p) =>
       p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
@@ -91,7 +104,10 @@ export default function TaskGrid() {
       setTasks((p) =>
         p.map((x) =>
           x.id === id
-            ? { ...x, status: status === "completed" ? "incompleted" : "completed" }
+            ? {
+                ...x,
+                status: status === "completed" ? "incompleted" : "completed",
+              }
             : x,
         ),
       );
@@ -113,11 +129,8 @@ export default function TaskGrid() {
     <div className="space-y-6">
       {/* BAR */}
       <div className="flex items-center justify-between gap-4">
-        <TaskFilters
-          value={filters}
-          onChange={setFilters}
-          categories={categories}
-        />
+        <TaskFilter categories={categories} onChange={setFilters} />
+
         <div className="flex items-center gap-3">
           {selectedIds.length > 0 && (
             <>
@@ -166,7 +179,9 @@ export default function TaskGrid() {
                 setSelectedIds((p) => p.filter((x) => x !== id));
               }}
               onUpdated={(u) =>
-                setTasks((p) => p.map((x) => (x.id === u.id ? u : x)))
+                setTasks((p) =>
+                  p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)),
+                )
               }
             />
           ))}
@@ -177,8 +192,13 @@ export default function TaskGrid() {
       <AddTaskModal
         open={showAdd}
         setOpen={setShowAdd}
+        categories={categories}
         onCreated={(t) =>
-          setTasks((p) => [...p, t].sort((a, b) => +a.dueDate - +b.dueDate))
+          setTasks((p) =>
+            [...p, t as TaskWithCat].sort(
+              (a, b) => +a.dueDate - +b.dueDate,
+            ),
+          )
         }
       />
 
@@ -188,7 +208,9 @@ export default function TaskGrid() {
           ids={selectedIds}
           setOpen={setShowBulk}
           onUpdated={(u) =>
-            setTasks((p) => p.map((x) => (x.id === u.id ? u : x)))
+            setTasks((p) =>
+              p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)),
+            )
           }
           clearSelection={() => setSelectedIds([])}
         />
