@@ -1,25 +1,33 @@
 // ─────────────────────────────────────────────────────────────
 // FILE: src/components/task/TaskCard.tsx
+// DESC: Card 320×400 px – แถบ “ความเร่งด่วน” 3 ท่อนติดกัน
+// NOTES:
+//   • ลบ startTime/endTime – model ยังไม่มี
+//   • เอา progress bar (pink/green) ออก → ใช้ UrgencyBars 3 ช่องติด
+//   • แก้ ESLint: fmt, UrgencyNum now used
 // ─────────────────────────────────────────────────────────────
 "use client";
 
 import { useState } from "react";
 import clsx from "clsx";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
+import { th } from "date-fns/locale";
 import {
+  Flag,
+  Calendar,
+  Package,
   Circle,
   CheckCircle2,
   Pencil,
   Trash,
-  Flag,
 } from "lucide-react";
 import type { Task, Category } from "@prisma/client";
 import EditTaskModal from "./EditTaskModal";
 
-/* ---------- types ---------- */
+/* ---------- types & helpers ---------- */
 type TaskStatus = "completed" | "incompleted";
 type UrgencyNum = 0 | 1 | 2 | 3;
-type TaskWithCat = Task & { category: Category | null };
+export type TaskWithCat = Task & { category: Category | null };
 
 interface Props {
   task: TaskWithCat;
@@ -30,26 +38,41 @@ interface Props {
   onUpdated: (t: TaskWithCat) => void;
 }
 
-/* ---------- helpers ---------- */
+/* Urgency → สี */
+const flagColors = [
+  "text-gray-400",
+  "text-emerald-500",
+  "text-sky-500",
+  "text-rose-500",
+] as const;
+
+/* Urgency bar mapping: color + amount */
 const barMap: Record<UrgencyNum, { count: 0 | 1 | 2 | 3; color: string }> = {
   0: { count: 0, color: "bg-gray-300" },
   1: { count: 1, color: "bg-emerald-400" },
   2: { count: 2, color: "bg-sky-400" },
   3: { count: 3, color: "bg-rose-400" },
 };
-const fmt = (d: Date | string) => format(new Date(d), "yyyy-MM-dd");
 
-/* ---------- component ---------- */
+const MetaRow = ({
+  icon,
+  children,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) => <div className="flex items-center gap-2 text-sm">{icon}{children}</div>;
+
+/* แถบ 3 ช่องติด (ไม่มีช่องว่าง) */
 function UrgencyBars({ level }: { level: UrgencyNum }) {
   const { count, color } = barMap[level];
   return (
-    <div className="mt-2 flex w-full gap-2">
+    <div className="mt-2 flex h-[5px] w-full overflow-hidden rounded-full">
       {Array.from({ length: 3 }).map((_, i) => (
         <span
           key={i}
           className={clsx(
-            "h-[5px] flex-1 rounded-full",
-            i < count ? color : "bg-gray-400/60",
+            "flex-1",
+            i < count ? color : "bg-gray-300/60",
           )}
         />
       ))}
@@ -57,6 +80,7 @@ function UrgencyBars({ level }: { level: UrgencyNum }) {
   );
 }
 
+/* ─────────────────────────────────────────────────────────── */
 export default function TaskCard({
   task,
   selected,
@@ -67,128 +91,119 @@ export default function TaskCard({
 }: Props) {
   const [hover, setHover] = useState(false);
   const [editing, setEditing] = useState(false);
+
   const nextStatus: TaskStatus =
     task.status === "completed" ? "incompleted" : "completed";
+  const remain = Math.max(differenceInCalendarDays(task.dueDate, new Date()), 0);
 
   return (
     <>
       <div
         className={clsx(
-          "relative rounded-lg border p-4 shadow transition hover:shadow-lg",
-          selected && "border-2 border-blue-500",
+          "relative flex h-[400px] w-[320px] flex-col rounded-lg border border-[#C9D1C3] bg-white p-5 shadow transition",
+          hover && "shadow-lg",
+          selected && "ring-2 ring-blue-500",
           task.status === "completed" && "opacity-60 line-through",
         )}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
       >
-        {/* select */}
-        <button
-          onClick={() => onSelect(task.id)}
-          className={clsx(
-            "absolute right-3 top-3 h-5 w-5 rounded-sm border",
-            selected ? "bg-blue-500" : "bg-white",
-          )}
-          aria-label="Select"
+        {/* Checkbox select */}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onSelect(task.id)}
+          className="absolute right-4 top-4 size-5 rounded-sm border-2 border-green-700 text-green-700 focus:ring-green-700"
         />
 
-        {/* urgency flag */}
+        {/* Urgency flag */}
         <Flag
           size={16}
-          className={clsx(
-            "absolute left-3 top-3",
-            ["text-gray-400", "text-emerald-500", "text-sky-500", "text-rose-500"][
-              task.urgency
-            ],
-          )}
+          className={clsx("absolute left-4 top-4", flagColors[task.urgency])}
         />
 
-        {/* title */}
-        <h3 className="mb-1 pr-6 text-lg font-semibold">{task.title}</h3>
+        {/* -------- TOP content (flex-1) -------- */}
+        <div className="flex-1 overflow-hidden">
+          <h3 className="pr-8 text-xl font-bold">{task.title}</h3>
 
-        {/* description */}
-        {task.description && (
-          <p className="mb-2 line-clamp-2 text-sm text-gray-700">
-            {task.description}
-          </p>
-        )}
-
-        <UrgencyBars level={task.urgency as UrgencyNum} />
-
-        {/* category & status */}
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          {task.category ? (
-            <span className="flex items-center gap-1 rounded bg-gray-200 px-2 py-0.5 text-gray-600">
-              <span
-                className="inline-block size-2 rounded-full"
-                style={{ background: task.category.color }}
-              />
-              {task.category.name}
-            </span>
-          ) : (
-            <span className="rounded bg-gray-200 px-2 py-0.5 text-gray-500">
-              No category
-            </span>
+          {task.description && (
+            <p className="mt-1 line-clamp-3 text-[13px] leading-snug text-gray-700">
+              {task.description}
+            </p>
           )}
 
-          <span
-            className={clsx(
-              "rounded px-2 py-0.5 font-medium",
-              task.status === "completed"
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-rose-100 text-rose-700",
-            )}
-          >
-            {task.status === "completed" ? "Completed" : "Incompleted"}
-          </span>
+          <hr className="my-3 border-t border-gray-300/60" />
+
+          <div className="space-y-2">
+            <MetaRow icon={<Calendar className="h-4 w-4 stroke-[2]" />}>
+              {format(task.dueDate, "d MMMM yyyy", { locale: th })}&nbsp;
+              <span className="text-xs text-gray-400">
+                ({format(task.dueDate, "dd/MM/yyyy")})
+              </span>
+            </MetaRow>
+
+            <MetaRow icon={<Package className="h-4 w-4 stroke-[2]" />}>
+              {task.category?.name ?? "No category"}
+            </MetaRow>
+          </div>
+
+          <hr className="my-3 border-t border-gray-300/60" />
+
+          <p className="text-center text-[14px] text-gray-700">
+            {remain === 0 ? "Due today" : `Due in ${remain} day`}
+          </p>
+
+          {/* ── UrgencyBars 3 ช่องติดกัน ── */}
+          <UrgencyBars level={task.urgency as UrgencyNum} />
         </div>
 
-        {/* dates */}
-        <ul className="mt-2 space-y-0.5 text-xs text-gray-500">
-          <li>Due&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {fmt(task.dueDate)}</li>
-          <li>Created : {fmt(task.createdAt)}</li>
-          <li>Updated : {fmt(task.updatedAt)}</li>
-        </ul>
-
-        {/* actions */}
+        {/* -------- ACTION ZONE (bottom) -------- */}
         <div className="mt-4 flex gap-2">
           <button
             onClick={() => onToggle(task.id, nextStatus)}
-            className="flex-1 rounded bg-emerald-500 py-2 text-white hover:bg-emerald-600"
-            title="Toggle"
+            className={clsx(
+              "flex-1 rounded py-2 text-white transition",
+              task.status === "completed"
+                ? "bg-gray-400 hover:bg-gray-500"
+                : "bg-emerald-500 hover:bg-emerald-600",
+            )}
+            title="Toggle status"
           >
             {task.status === "completed" ? (
-              <CheckCircle2 size={18} />
+              <CheckCircle2 size={20} />
             ) : (
-              <Circle size={18} />
+              <Circle size={20} />
             )}
           </button>
+
           {(hover || selected) && (
             <>
               <button
                 onClick={() => setEditing(true)}
                 className="flex-1 rounded bg-sky-200 py-2 text-sky-800 hover:bg-sky-300"
-                title="Edit"
+                title="Edit Task"
               >
-                <Pencil size={16} />
+                <Pencil size={18} />
               </button>
               <button
                 onClick={() =>
                   confirm("Delete this task?") && onDeleted(task.id)
                 }
                 className="flex-1 rounded bg-rose-500 py-2 text-white hover:bg-rose-600"
-                title="Delete"
+                title="Delete Task"
               >
-                <Trash size={16} />
+                <Trash size={18} />
               </button>
             </>
           )}
         </div>
       </div>
 
+      {/* Modal edit */}
       {editing && (
         <EditTaskModal
           task={task}
-          categories={[]}        /* ส่ง array เปล่า เมื่อเรียกจาก Card */
+          categories={[]} /* ส่ง array เปล่า เมื่อเรียกจาก Card */
           setOpen={setEditing}
           onUpdated={onUpdated}
         />
