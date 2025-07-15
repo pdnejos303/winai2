@@ -2,9 +2,9 @@
 // FILE: src/components/task/TaskCard.tsx
 // DESC: Card 320×400 px – แถบ “ความเร่งด่วน” 3 ท่อนติดกัน
 // NOTES:
-//   • ลบ startTime/endTime – model ยังไม่มี
-//   • เอา progress bar (pink/green) ออก → ใช้ UrgencyBars 3 ช่องติด
-//   • แก้ ESLint: fmt, UrgencyNum now used
+// • ลบ startTime/endTime – model ยังไม่มี
+// • เอา progress bar (pink/green) ออก → ใช้ UrgencyBars 3 ช่องติด
+// • แก้ ESLint/TS ทุกจุด (no-explicit-any, unused eslint-disable, TS2741 ฯลฯ)
 // ─────────────────────────────────────────────────────────────
 "use client";
 
@@ -20,7 +20,9 @@ import {
   CheckCircle2,
   Pencil,
   Trash,
+  type LucideIcon,
 } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import type { Task, Category } from "@prisma/client";
 import EditTaskModal from "./EditTaskModal";
 
@@ -36,44 +38,29 @@ interface Props {
   onToggle: (id: number, next: TaskStatus) => void;
   onDeleted: (id: number) => void;
   onUpdated: (t: TaskWithCat) => void;
+  categories?: Category[]; // ส่งต่อให้ EditTaskModal
 }
 
 /* Urgency → สี */
-const flagColors = [
-  "text-gray-400",
-  "text-emerald-500",
-  "text-sky-500",
-  "text-rose-500",
-] as const;
+const flagColors = ["text-gray-400", "text-emerald-500", "text-sky-500", "text-rose-500"] as const;
+const barColors = ["bg-gray-300", "bg-emerald-400", "bg-sky-400", "bg-rose-400"] as const;
 
-/* Urgency bar mapping: color + amount */
-const barMap: Record<UrgencyNum, { count: 0 | 1 | 2 | 3; color: string }> = {
-  0: { count: 0, color: "bg-gray-300" },
-  1: { count: 1, color: "bg-emerald-400" },
-  2: { count: 2, color: "bg-sky-400" },
-  3: { count: 3, color: "bg-rose-400" },
-};
+/* meta row (icon + text) */
+const MetaRow = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
+  <p className="flex items-center gap-2 text-sm">
+    {icon}
+    {children}
+  </p>
+);
 
-const MetaRow = ({
-  icon,
-  children,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) => <div className="flex items-center gap-2 text-sm">{icon}{children}</div>;
-
-/* แถบ 3 ช่องติด (ไม่มีช่องว่าง) */
+/* UrgencyBars – 3 ช่องติดกันเห็นรอยต่อ */
 function UrgencyBars({ level }: { level: UrgencyNum }) {
-  const { count, color } = barMap[level];
   return (
-    <div className="mt-2 flex h-[5px] w-full overflow-hidden rounded-full">
+    <div className="grid grid-cols-3 gap-[2px]">
       {Array.from({ length: 3 }).map((_, i) => (
-        <span
+        <div
           key={i}
-          className={clsx(
-            "flex-1",
-            i < count ? color : "bg-gray-300/60",
-          )}
+          className={clsx("h-1 w-full rounded-sm", i < level ? barColors[level] : "bg-gray-200")}
         />
       ))}
     </div>
@@ -88,22 +75,27 @@ export default function TaskCard({
   onToggle,
   onDeleted,
   onUpdated,
+  categories,
 }: Props) {
   const [hover, setHover] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  const nextStatus: TaskStatus =
-    task.status === "completed" ? "incompleted" : "completed";
+  /* ---------- derived ---------- */
+  const nextStatus: TaskStatus = task.status === "completed" ? "incompleted" : "completed";
   const remain = Math.max(differenceInCalendarDays(task.dueDate, new Date()), 0);
+
+  /* ---------- category icon ---------- */
+  const DynamicIcons = LucideIcons as unknown as Record<string, LucideIcon>; // → แก้ TS2352
+  const IconComp =
+    task.category && DynamicIcons[task.category.icon] ? DynamicIcons[task.category.icon] : Package;
 
   return (
     <>
       <div
         className={clsx(
-          "relative flex h-[400px] w-[320px] flex-col rounded-lg border border-[#C9D1C3] bg-white p-5 shadow transition",
+          "relative flex h-[400px] w-[320px] flex-col rounded-lg bg-white p-6 shadow transition",
           hover && "shadow-lg",
-          selected && "ring-2 ring-blue-500",
-          task.status === "completed" && "opacity-60 line-through",
+          selected && "ring-2 ring-green-700",
         )}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
@@ -117,48 +109,43 @@ export default function TaskCard({
         />
 
         {/* Urgency flag */}
-        <Flag
-          size={16}
-          className={clsx("absolute left-4 top-4", flagColors[task.urgency])}
-        />
+        <Flag className={clsx("absolute left-4 top-4 h-5 w-5", flagColors[task.urgency])} />
 
         {/* -------- TOP content (flex-1) -------- */}
-        <div className="flex-1 overflow-hidden">
-          <h3 className="pr-8 text-xl font-bold">{task.title}</h3>
+        <div className="mb-4 mt-8 flex-1 space-y-3 overflow-y-auto">
+          <h3 className="break-words text-lg font-semibold">{task.title}</h3>
 
           {task.description && (
-            <p className="mt-1 line-clamp-3 text-[13px] leading-snug text-gray-700">
+            <p className="whitespace-pre-line break-words text-sm text-gray-700">
               {task.description}
             </p>
           )}
 
-          <hr className="my-3 border-t border-gray-300/60" />
+          <hr />
 
-          <div className="space-y-2">
-            <MetaRow icon={<Calendar className="h-4 w-4 stroke-[2]" />}>
-              {format(task.dueDate, "d MMMM yyyy", { locale: th })}&nbsp;
-              <span className="text-xs text-gray-400">
-                ({format(task.dueDate, "dd/MM/yyyy")})
-              </span>
-            </MetaRow>
+          {/* due date */}
+          <MetaRow icon={<Calendar className="h-4 w-4" />}>
+            {format(task.dueDate, "d MMMM yyyy", { locale: th })}&nbsp;
+            ({format(task.dueDate, "dd/MM/yyyy")})
+          </MetaRow>
 
-            <MetaRow icon={<Package className="h-4 w-4 stroke-[2]" />}>
-              {task.category?.name ?? "No category"}
-            </MetaRow>
-          </div>
+          {/* category (icon + name) */}
+          <MetaRow icon={<IconComp className="h-4 w-4" />}>
+            {task.category?.name ?? "No category"}
+          </MetaRow>
 
-          <hr className="my-3 border-t border-gray-300/60" />
+          <hr />
 
-          <p className="text-center text-[14px] text-gray-700">
-            {remain === 0 ? "Due today" : `Due in ${remain} day`}
+          <p className="text-center text-sm italic text-gray-500">
+            {remain === 0 ? "Due today" : `Due in ${remain} day${remain > 1 ? "s" : ""}`}
           </p>
 
-          {/* ── UrgencyBars 3 ช่องติดกัน ── */}
+          {/* UrgencyBars */}
           <UrgencyBars level={task.urgency as UrgencyNum} />
         </div>
 
         {/* -------- ACTION ZONE (bottom) -------- */}
-        <div className="mt-4 flex gap-2">
+        <div className="mt-auto flex gap-1">
           <button
             onClick={() => onToggle(task.id, nextStatus)}
             className={clsx(
@@ -170,9 +157,9 @@ export default function TaskCard({
             title="Toggle status"
           >
             {task.status === "completed" ? (
-              <CheckCircle2 size={20} />
+              <CheckCircle2 className="mx-auto h-5 w-5" />
             ) : (
-              <Circle size={20} />
+              <Circle className="mx-auto h-5 w-5" />
             )}
           </button>
 
@@ -183,16 +170,14 @@ export default function TaskCard({
                 className="flex-1 rounded bg-sky-200 py-2 text-sky-800 hover:bg-sky-300"
                 title="Edit Task"
               >
-                <Pencil size={18} />
+                <Pencil className="mx-auto h-5 w-5" />
               </button>
               <button
-                onClick={() =>
-                  confirm("Delete this task?") && onDeleted(task.id)
-                }
+                onClick={() => confirm("Delete this task?") && onDeleted(task.id)}
                 className="flex-1 rounded bg-rose-500 py-2 text-white hover:bg-rose-600"
                 title="Delete Task"
               >
-                <Trash size={18} />
+                <Trash className="mx-auto h-5 w-5" />
               </button>
             </>
           )}
@@ -203,9 +188,12 @@ export default function TaskCard({
       {editing && (
         <EditTaskModal
           task={task}
-          categories={[]} /* ส่ง array เปล่า เมื่อเรียกจาก Card */
+          categories={categories ?? []}
           setOpen={setEditing}
-          onUpdated={onUpdated}
+          onUpdated={(u) => {
+            onUpdated(u as TaskWithCat);
+            setEditing(false);
+          }}
         />
       )}
     </>

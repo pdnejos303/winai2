@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE: src/components/task/TaskGrid.tsx
-// DESC: Grid + Filter + Add + Bulk-edit  (รองรับ categoryId model ใหม่)
+// DESC: Grid + Filter + Add + Bulk-edit + Category dialog (icon picker)
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
@@ -12,8 +12,10 @@ import TaskCard from "./TaskCard";
 import TaskFilter, { FilterState } from "./TaskFilters";
 import AddTaskModal from "./AddTaskModal";
 import BulkEditModal from "./BulkEditModal";
+import AddCategoryDialog from "./AddCategoryDialog";            // 🆕
 
-type TaskWithCat = Task & { category: Category | null };
+// ---------- helpers & types ----------
+export type TaskWithCat = Task & { category: Category | null };
 
 const defaultFilters: FilterState = {
   status: "all",
@@ -22,24 +24,40 @@ const defaultFilters: FilterState = {
 };
 
 export default function TaskGrid() {
+  // locale & router
   const pathname = usePathname();
   const locale = pathname.split("/")[1] || "en";
-  const router = useRouter();
+  const router  = useRouter();
 
-  /* ---------- state ---------- */
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
-  const [tasks, setTasks] = useState<TaskWithCat[]>([]);
+  // ---------- state ----------
+  const [filters, setFilters]         = useState(defaultFilters);
+  const [tasks, setTasks]             = useState<TaskWithCat[]>([]);
+  const [categories, setCategories]   = useState<Category[]>([]);          // 🆕
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
-  const [showBulk, setShowBulk] = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [showAdd, setShowAdd]         = useState(false);
+  const [showAddCat, setShowAddCat]   = useState(false);                  // 🆕
+  const [showBulk, setShowBulk]       = useState(false);
 
   const reqId = useRef(0);
 
-  /* reset filters เมื่อ locale เปลี่ยน */
+  // reset filters เมื่อ locale เปลี่ยน
   useEffect(() => setFilters(defaultFilters), [locale]);
 
-  /* ---------- fetch list ---------- */
+  // ---------- fetch categories ----------
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/categories", { cache: "no-store" });
+      if (res.status === 401) {
+        router.replace(`/${locale}/login`);
+        return;
+      }
+      const data: Category[] = await res.json();
+      setCategories(data);
+    })();
+  }, [locale, router]);
+
+  // ---------- fetch tasks ----------
   useEffect(() => {
     const id = ++reqId.current;
     setLoading(true);
@@ -47,22 +65,15 @@ export default function TaskGrid() {
     (async () => {
       try {
         const qs = new URLSearchParams();
-        if (filters.status && filters.status !== "all")
-          qs.append("status", filters.status);
-        if (filters.urgency !== "all")
-          qs.append("urgency", String(filters.urgency));
-        if (filters.categoryId !== "all")
-          qs.append("category", String(filters.categoryId));
+        if (filters.status     !== "all") qs.append("status",   filters.status);
+        if (filters.urgency    !== "all") qs.append("urgency",  String(filters.urgency));
+        if (filters.categoryId !== "all") qs.append("category", String(filters.categoryId));
 
-        const res = await fetch("/api/tasks?" + qs.toString(), {
-          cache: "no-store",
-        });
-
+        const res = await fetch("/api/tasks?" + qs.toString(), { cache: "no-store" });
         if (res.status === 401) {
           router.replace(`/${locale}/login`);
           return;
         }
-
         const data: TaskWithCat[] = await res.json();
         if (id === reqId.current) setTasks(data);
       } catch (err) {
@@ -73,25 +84,12 @@ export default function TaskGrid() {
     })();
   }, [filters, locale, router]);
 
-  /* ---------- helpers ---------- */
-  const categories = Array.from(
-    new Map(
-      tasks
-        .filter((t) => t.category)
-        .map((t) => [t.category!.id, t.category!]),
-    ).values(),
-  );
-
+  // ---------- helpers ----------
   const toggleSelect = (id: number) =>
-    setSelectedIds((p) =>
-      p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
-    );
+    setSelectedIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
-  /* ---------- toggle status ---------- */
-  async function handleToggle(
-    id: number,
-    status: "completed" | "incompleted",
-  ) {
+  // toggle status
+  async function handleToggle(id: number, status: "completed" | "incompleted") {
     setTasks((p) => p.map((x) => (x.id === id ? { ...x, status } : x)));
     try {
       const res = await fetch(`/api/tasks/${id}`, {
@@ -101,20 +99,18 @@ export default function TaskGrid() {
       });
       if (!res.ok) throw new Error();
     } catch {
+      // rollback
       setTasks((p) =>
         p.map((x) =>
           x.id === id
-            ? {
-                ...x,
-                status: status === "completed" ? "incompleted" : "completed",
-              }
+            ? { ...x, status: status === "completed" ? "incompleted" : "completed" }
             : x,
         ),
       );
     }
   }
 
-  /* ---------- bulk delete ---------- */
+  // bulk delete
   async function handleBulkDelete() {
     if (!confirm(`Delete ${selectedIds.length} tasks?`)) return;
     setTasks((p) => p.filter((x) => !selectedIds.includes(x.id)));
@@ -124,7 +120,7 @@ export default function TaskGrid() {
     );
   }
 
-  /* ---------- JSX ---------- */
+  // ---------- JSX ----------
   return (
     <div className="space-y-6">
       {/* BAR */}
@@ -132,11 +128,18 @@ export default function TaskGrid() {
         <TaskFilter categories={categories} onChange={setFilters} />
 
         <div className="flex items-center gap-3">
+          {/* button – add category */}
+          <button
+            onClick={() => setShowAddCat(true)}
+            className="rounded-md border px-3 py-1 hover:bg-gray-50"
+          >
+            + Category
+          </button>
+
+          {/* selected actions */}
           {selectedIds.length > 0 && (
             <>
-              <span className="text-sm text-blue-600">
-                {selectedIds.length} selected
-              </span>
+              <span className="text-sm text-blue-600">{selectedIds.length} selected</span>
               <button
                 onClick={() => setShowBulk(true)}
                 className="rounded bg-sky-600 px-3 py-1 text-white hover:bg-sky-700"
@@ -151,6 +154,8 @@ export default function TaskGrid() {
               </button>
             </>
           )}
+
+          {/* button – add task */}
           <button
             onClick={() => setShowAdd(true)}
             className="rounded-md bg-brand-green px-4 py-2 font-medium text-white hover:opacity-90"
@@ -179,38 +184,41 @@ export default function TaskGrid() {
                 setSelectedIds((p) => p.filter((x) => x !== id));
               }}
               onUpdated={(u) =>
-                setTasks((p) =>
-                  p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)),
-                )
+                setTasks((p) => p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)))
               }
             />
           ))}
         </div>
       )}
 
-      {/* MODAL Add */}
+      {/* MODAL – Add Task */}
       <AddTaskModal
         open={showAdd}
         setOpen={setShowAdd}
         categories={categories}
         onCreated={(t) =>
           setTasks((p) =>
-            [...p, t as TaskWithCat].sort(
-              (a, b) => +a.dueDate - +b.dueDate,
-            ),
+            [...p, t as TaskWithCat].sort((a, b) => +a.dueDate - +b.dueDate),
           )
         }
       />
 
-      {/* MODAL Bulk-edit */}
+      {/* DIALOG – Add Category */}
+      {showAddCat && (
+        <AddCategoryDialog
+          open={showAddCat}
+          setOpen={setShowAddCat}
+          onCreated={(c) => setCategories((p) => [...p, c])}
+        />
+      )}
+
+      {/* MODAL – Bulk-edit */}
       {showBulk && (
         <BulkEditModal
           ids={selectedIds}
           setOpen={setShowBulk}
           onUpdated={(u) =>
-            setTasks((p) =>
-              p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)),
-            )
+            setTasks((p) => p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)))
           }
           clearSelection={() => setSelectedIds([])}
         />
