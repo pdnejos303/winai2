@@ -213,15 +213,16 @@ export default function TaskGrid() {
       )}
 
       {/* MODAL – Bulk-edit */}
-      {showBulk && (
-        <BulkEditModal
-          ids={selectedIds}
-          setOpen={setShowBulk}
-          onUpdated={(u) =>
-            setTasks((p) => p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)))
-          }
-          clearSelection={() => setSelectedIds([])}
-        />
+     {showBulk && (
+  <BulkEditModal
+    ids={selectedIds}
+    setOpen={setShowBulk}
+    categories={categories}      // ⭐️ ส่งลงไป
+    onUpdated={(u) =>
+      setTasks((p) => p.map((x) => (x.id === u.id ? (u as TaskWithCat) : x)))
+    }
+    clearSelection={() => setSelectedIds([])}
+  />
       )}
     </div>
   );

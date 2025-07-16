@@ -1,11 +1,17 @@
 // ─────────────────────────────────────────────────────────────
 // FILE: src/components/task/AddTaskModal.tsx
-// DESC: Modal สร้าง Task – ใช้ categoryId (dropdown)
+// DESC: Modal สร้าง Task – ปุ่ม Priority & Grid Category (มี Icon)
 // ─────────────────────────────────────────────────────────────
 "use client";
 
 import { useState } from "react";
 import type { Category, Task } from "@prisma/client";
+import * as LucideIcons from "lucide-react";
+import {
+  Flag,
+  type LucideIcon,
+  Package, // fallback
+} from "lucide-react";
 
 /* ---------- ชนิด Task รวม relation ---------- */
 export type TaskWithCat = Task & { category: Category | null };
@@ -14,9 +20,31 @@ export type TaskWithCat = Task & { category: Category | null };
 interface Props {
   open: boolean;
   setOpen: (b: boolean) => void;
-  categories: Category[];            // ← รับรายการหมวด
+  categories: Category[];
   onCreated: (t: TaskWithCat) => void;
 }
+
+/* ---------- style map ---------- */
+const urgencyUI = {
+  1: {
+    label: "Low",
+    ring: "ring-emerald-400",
+    active: "bg-emerald-500 text-white",
+    inactive: "border-emerald-300 text-emerald-600 hover:bg-emerald-50",
+  },
+  2: {
+    label: "Medium",
+    ring: "ring-amber-400",
+    active: "bg-amber-400 text-white",
+    inactive: "border-amber-300 text-amber-700 hover:bg-amber-50",
+  },
+  3: {
+    label: "High",
+    ring: "ring-rose-500",
+    active: "bg-rose-500 text-white",
+    inactive: "border-rose-300 text-rose-700 hover:bg-rose-50",
+  },
+} as const;
 
 export default function AddTaskModal({
   open,
@@ -26,15 +54,16 @@ export default function AddTaskModal({
 }: Props) {
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [urgency, setUrgency] = useState<0 | 1 | 2 | 3>(0);
-  const [categoryId, setCategoryId] = useState<number | "none">("none");
+  const [urgency, setUrgency] = useState<0 | 1 | 2 | 3>(0); // 0=none
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   /* ----------- handlers ----------- */
   if (!open) return null;
 
   async function handleSave() {
-    if (!title || !dueDate) return alert("Fill required fields");
+    if (!title || !dueDate)
+      return alert("Fill required fields");
     setSaving(true);
     try {
       const res = await fetch("/api/tasks", {
@@ -45,18 +74,17 @@ export default function AddTaskModal({
           description: "",
           dueDate: new Date(dueDate).toISOString(),
           urgency,
-          /* ส่ง FK (nullable) */
-          categoryId: categoryId === "none" ? null : categoryId,
+          categoryId,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
       onCreated(await res.json());
 
-      // reset state & close
+      // reset & close
       setTitle("");
       setDueDate("");
       setUrgency(0);
-      setCategoryId("none");
+      setCategoryId(null);
       setOpen(false);
     } catch (e) {
       console.error(e);
@@ -65,6 +93,9 @@ export default function AddTaskModal({
       setSaving(false);
     }
   }
+
+  /* ----------- helpers ----------- */
+  const DynamicIcons = LucideIcons as unknown as Record<string, LucideIcon>;
 
   /* ----------- UI ----------- */
   return (
@@ -89,35 +120,68 @@ export default function AddTaskModal({
           onChange={(e) => setDueDate(e.target.value)}
         />
 
-        {/* urgency */}
-        <label className="mb-1 block text-sm">Urgency</label>
-        <select
-          className="mb-3 w-full rounded border px-3 py-2"
-          value={urgency}
-          onChange={(e) => setUrgency(+e.target.value as 0 | 1 | 2 | 3)}
-        >
-          <option value={0}>None</option>
-          <option value={1}>Low</option>
-          <option value={2}>Medium</option>
-          <option value={3}>High</option>
-        </select>
+        {/* Urgency buttons */}
+        <label className="mb-2 flex items-center gap-2 text-sm">
+          <Flag className="h-4 w-4 text-green-600" />
+          Priority
+        </label>
+        <div className="mb-4 flex gap-4">
+          {(Object.keys(urgencyUI) as Array<"1" | "2" | "3">).map((k) => {
+            const lv = Number(k) as 1 | 2 | 3;
+            const active = urgency === lv;
+            return (
+              <button
+                type="button"
+                key={lv}
+                onClick={() => setUrgency(active ? 0 : lv)}
+                className={`
+                  w-24 rounded-full border px-4 py-2 text-sm transition
+                  ${active ? urgencyUI[lv].active : urgencyUI[lv].inactive}
+                  ${!active && "border"} ${active && urgencyUI[lv].ring}
+                `}
+              >
+                {urgencyUI[lv].label}
+              </button>
+            );
+          })}
+        </div>
 
-        {/* category */}
-        <label className="mb-1 block text-sm">Category</label>
-        <select
-          className="mb-4 w-full rounded border px-3 py-2"
-          value={categoryId}
-          onChange={(e) =>
-            setCategoryId(e.target.value === "none" ? "none" : +e.target.value)
-          }
-        >
-          <option value="none">— None —</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        {/* Category grid */}
+        <label className="mb-2 block text-sm">Category</label>
+        <div className="mb-4 grid grid-cols-4 gap-3">
+          {/* none */}
+          <button
+            type="button"
+            onClick={() => setCategoryId(null)}
+            className={`flex h-10 w-full flex-col items-center justify-center rounded border text-xs ${
+              categoryId === null
+                ? "border-sky-500 bg-sky-50"
+                : "border-transparent hover:bg-gray-50"
+            }`}
+          >
+            none
+          </button>
+
+          {categories.map((c) => {
+            const Icon = DynamicIcons[c.icon] ?? Package;
+            const active = categoryId === c.id;
+            return (
+              <button
+                type="button"
+                key={c.id}
+                onClick={() => setCategoryId(active ? null : c.id)}
+                className={`flex h-10 w-full flex-col items-center justify-center rounded border text-xs ${
+                  active
+                    ? "border-sky-500 bg-sky-50"
+                    : "border-transparent hover:bg-gray-50"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
 
         {/* buttons */}
         <div className="flex justify-end gap-3">
